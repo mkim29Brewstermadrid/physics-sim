@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Physics Hoops Lab</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <section id="authScreen" class="screen screen-auth">
+      <div class="card auth-card">
+        <p class="eyebrow">Physics Hoops Lab</p>
+        <h1>Sign in to start the simulation</h1>
+        <p class="subtext">Choose a sign-in method. Google sign-in is simulated for this demo.</p>
+        <div class="auth-actions">
+          <button id="guestSignInBtn" class="btn-primary">Continue as Guest</button>
+          <button id="googleSignInBtn" class="btn-google">
+            <span class="google-dot">G</span>
+            Continue with Google
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="homeScreen" class="screen hidden">
+      <div class="card home-card">
+        <div class="home-head">
+          <h1>Welcome, <span id="userNameText">Guest</span></h1>
+          <p id="providerText" class="subtext"></p>
+        </div>
+
+        <p class="subtext">Pick difficulty and explore how angle, power, gravity, and wind change a shot.</p>
+
+        <div class="mode-grid">
+          <button class="mode-card selected" data-mode="easy">
+            <strong>Easy</strong>
+            <span>Restriction: minimum power only.</span>
+          </button>
+          <button class="mode-card" data-mode="medium">
+            <strong>Medium</strong>
+            <span>Restriction: random angle window.</span>
+          </button>
+          <button class="mode-card" data-mode="hard">
+            <strong>Hard</strong>
+            <span>Restriction: random power window.</span>
+          </button>
+        </div>
+
+        <button id="startSimBtn" class="btn-primary start-btn">Start Simulation</button>
+      </div>
+    </section>
+
+    <section id="simScreen" class="screen hidden">
+      <header class="topbar card">
+        <div>
+          <h2>Physics Hoops Lab</h2>
+          <p><strong id="hudUserName">Guest</strong> · <span id="hudModeText">Easy</span></p>
+        </div>
+        <button id="backHomeBtn" class="btn-secondary">Back to Home</button>
+      </header>
+
+      <section class="sim-layout">
+        <canvas id="simCanvas" width="960" height="540" aria-label="Basketball physics simulator"></canvas>
+
+        <aside class="panel card">
+          <div class="stats">
+            <div><span>Score</span><strong id="scoreValue">0</strong></div>
+            <div><span>Shots</span><strong id="shotsValue">0</strong></div>
+            <div><span>Streak</span><strong id="streakValue">0</strong></div>
+            <div><span>Best</span><strong id="bestStreakValue">0</strong></div>
+          </div>
+
+          <label for="angleControl">Launch angle <span id="angleValue"></span></label>
+          <input id="angleControl" type="range" min="20" max="85" value="50" />
+
+          <label for="powerControl">Launch power <span id="powerValue"></span></label>
+          <input id="powerControl" type="range" min="30" max="85" value="58" />
+
+          <label for="gravityControl">Gravity <span id="gravityValue"></span></label>
+          <input id="gravityControl" type="range" min="6" max="14" step="0.2" value="9.8" />
+
+          <label for="windControl">Wind <span id="windValue"></span></label>
+          <input id="windControl" type="range" min="-15" max="15" step="0.5" value="0" />
+
+          <div class="toggle">
+            <input id="previewToggle" type="checkbox" checked />
+            <label for="previewToggle">Show trajectory preview</label>
+          </div>
+
+          <p id="restrictionText" class="restriction-text"></p>
+          <p id="externalText" class="external-text"></p>
+          <p id="statusText" class="status-text">Tune controls and shoot.</p>
+
+          <div class="actions">
+            <button id="shootBtn" class="btn-primary">Shoot</button>
+            <button id="resetBtn" class="btn-secondary">Reset Ball</button>
+          </div>
+
+          <div class="learn-box">
+            <p><strong>Physics tips</strong></p>
+            <p id="lessonText"></p>
+          </div>
+        </aside>
+      </section>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

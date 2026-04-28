@@ -6,8 +6,6 @@ const controls = {
   power: document.getElementById("powerControl"),
   gravity: document.getElementById("gravityControl"),
   wind: document.getElementById("windControl"),
-  drag: document.getElementById("dragControl"),
-  spin: document.getElementById("spinControl"),
   preview: document.getElementById("previewToggle")
 };
 
@@ -15,33 +13,27 @@ const labels = {
   angle: document.getElementById("angleValue"),
   power: document.getElementById("powerValue"),
   gravity: document.getElementById("gravityValue"),
-  wind: document.getElementById("windValue"),
-  drag: document.getElementById("dragValue"),
-  spin: document.getElementById("spinValue")
+  wind: document.getElementById("windValue")
 };
+
+const playerNameInput = document.getElementById("playerName");
+const modeButtons = Array.from(document.querySelectorAll(".mode-btn"));
+const modeDescription = document.getElementById("modeDescription");
+const restrictionText = document.getElementById("restrictionText");
 
 const scoreValue = document.getElementById("scoreValue");
 const shotsValue = document.getElementById("shotsValue");
 const streakValue = document.getElementById("streakValue");
 const bestStreakValue = document.getElementById("bestStreakValue");
-const statusText = document.getElementById("statusText");
-const modeRuleText = document.getElementById("modeRuleText");
-const shotCommandText = document.getElementById("shotCommandText");
 const externalText = document.getElementById("externalText");
-const playerDisplay = document.getElementById("playerDisplay");
-const modeDisplay = document.getElementById("modeDisplay");
-
-const entryOverlay = document.getElementById("entryOverlay");
-const playerNameInput = document.getElementById("playerNameInput");
-const startBtn = document.getElementById("startBtn");
-const modeButtons = Array.from(document.querySelectorAll(".mode-card"));
+const statusText = document.getElementById("statusText");
 
 const rim = { x: 814, y: 228, radius: 11 };
 const rim2 = { x: 862, y: 228, radius: 11 };
 const backboard = { x: 884, y: 145, w: 10, h: 120 };
 const floorY = 490;
 const hoopY = rim.y;
-const hoopCenterX = (rim.x + rim2.x) * 0.5;
+const hoopX = (rim.x + rim2.x) * 0.5;
 
 const player = { x: 132, y: floorY - 145 };
 
@@ -50,126 +42,117 @@ const ball = {
   y: player.y - 13,
   vx: 0,
   vy: 0,
-  radius: 12,
   spin: 0,
+  radius: 12,
   inFlight: false,
-  scoredThisShot: false,
-  resultProcessed: false,
-  outOfBounds: false
+  scored: false,
+  processed: false,
+  out: false
 };
 
 const game = {
+  mode: "easy",
   score: 0,
   shots: 0,
   streak: 0,
   bestStreak: 0,
-  time: 0,
-  started: false,
-  playerName: "Guest",
-  mode: "easy"
+  time: 0
 };
 
-const modeProfiles = {
+const modes = {
   easy: {
-    label: "Easy Mode",
-    description: "Assist enabled: bigger make window, tiny launch drift, softer weather.",
-    rimTolerance: 17,
-    angleJitter: 0.8,
-    powerJitter: 1.8,
-    windVariance: 2,
-    gravityVariance: 0.3,
-    turbulence: 2,
-    dragScale: 0.9,
-    scoreMultiplier: 1
+    label: "Easy",
+    description: "Most shots are makeable. Restriction: power must be at least 42.",
+    rimTolerance: 18,
+    angleJitter: 0.4,
+    windJitter: 1.2,
+    gravityJitter: 0.2,
+    assist: 0.26,
+    restriction: {
+      name: "Power floor",
+      generate: () => ({ minPower: 42 }),
+      text: (r) => `Restriction: Keep power >= ${r.minPower}.`,
+      pass: (shot, r) => shot.power >= r.minPower
+    }
   },
   medium: {
-    label: "Medium Mode",
-    description: "Random shot commands, moderate launch drift, active wind and gravity shifts.",
-    rimTolerance: 8,
-    angleJitter: 3.8,
-    powerJitter: 4,
-    windVariance: 6,
-    gravityVariance: 0.8,
-    turbulence: 8,
-    dragScale: 1.05,
-    scoreMultiplier: 1.35
+    label: "Medium",
+    description: "Slightly harder, still fair. Restriction: your angle must be inside a random zone.",
+    rimTolerance: 11,
+    angleJitter: 1.3,
+    windJitter: 2.5,
+    gravityJitter: 0.45,
+    assist: 0.12,
+    restriction: {
+      name: "Angle zone",
+      generate: () => {
+        const min = Math.round(40 + Math.random() * 10);
+        return { min, max: min + 16 };
+      },
+      text: (r) => `Restriction: Angle must stay between ${r.min}° and ${r.max}°.`,
+      pass: (shot, r) => shot.angle >= r.min && shot.angle <= r.max
+    }
   },
   hard: {
-    label: "Hard Mode",
-    description: "Strict command checks, narrow make window, high turbulence and shot disruption.",
-    rimTolerance: 2,
-    angleJitter: 7,
-    powerJitter: 6,
-    windVariance: 11,
-    gravityVariance: 1.5,
-    turbulence: 15,
-    dragScale: 1.2,
-    scoreMultiplier: 1.8
+    label: "Hard",
+    description: "Hardest but still possible. Restriction: angle must stay in a tighter random zone.",
+    rimTolerance: 7,
+    angleJitter: 2.1,
+    windJitter: 4.2,
+    gravityJitter: 0.75,
+    assist: 0.04,
+    restriction: {
+      name: "Tight angle zone",
+      generate: () => {
+        const min = Math.round(46 + Math.random() * 8);
+        return { min, max: min + 10 };
+      },
+      text: (r) => `Restriction: Angle must stay between ${r.min}° and ${r.max}°.`,
+      pass: (shot, r) => shot.angle >= r.min && shot.angle <= r.max
+    }
   }
 };
 
-const shotCommands = [
-  {
-    id: "arc-master",
-    text: "Command: Arc Master (launch angle must be 55° to 74°).",
-    test: (shot) => shot.angleInput >= 55 && shot.angleInput <= 74
-  },
-  {
-    id: "power-window",
-    text: "Command: Power Window (power must be 46 to 64).",
-    test: (shot) => shot.powerInput >= 46 && shot.powerInput <= 64
-  },
-  {
-    id: "no-spin",
-    text: "Command: No Spin (spin between -2 and 2).",
-    test: (shot) => Math.abs(shot.spinInput) <= 2
-  },
-  {
-    id: "bank-only",
-    text: "Command: Bank Shot Only (must hit backboard before scoring).",
-    test: (shot) => shot.banked === true
-  },
-  {
-    id: "headwind",
-    text: "Command: Ride The Wind (shoot while wind indicator is not calm).",
-    test: (shot) => Math.abs(shot.appliedWind) >= 2
-  }
-];
-
-const modeCommandIndexes = {
-  easy: [],
-  medium: [0, 1, 2, 4],
-  hard: [0, 1, 2, 3, 4]
-};
-
-const shotFactors = {
-  appliedWind: 0,
-  appliedGravity: 0,
-  angleInput: 0,
-  powerInput: 0,
-  spinInput: 0,
+const liveFactors = {
+  wind: 0,
+  gravity: 9.8,
+  shotAngle: 50,
+  shotPower: 58,
   banked: false
 };
 
-let selectedMode = "easy";
-let currentCommand = null;
+let activeRestriction = null;
 
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function updateLabelValues() {
-  labels.angle.textContent = `${controls.angle.value}°`;
-  labels.power.textContent = `${controls.power.value}`;
-  labels.gravity.textContent = `${Number(controls.gravity.value).toFixed(1)} m/s²`;
-  labels.wind.textContent = `${Number(controls.wind.value).toFixed(1)}`;
-  labels.drag.textContent = Number(controls.drag.value).toFixed(3);
-  labels.spin.textContent = controls.spin.value;
+function setStatus(text, state = "normal") {
+  statusText.textContent = text;
+  if (state === "good") statusText.style.color = "#75efc2";
+  else if (state === "bad") statusText.style.color = "#ffacac";
+  else statusText.style.color = "#ffd8a0";
 }
 
-function setStatus(message, good = false, bad = false) {
-  statusText.textContent = message;
-  statusText.style.color = good ? "#7ef8c6" : bad ? "#ff9b9b" : "#fed29c";
+function setMode(mode) {
+  game.mode = mode;
+  modeButtons.forEach((b) => b.classList.toggle("selected", b.dataset.mode === mode));
+  modeDescription.textContent = modes[mode].description;
+  prepareRestriction();
+  setStatus(`${modes[mode].label} mode selected.`, "normal");
+}
+
+function prepareRestriction() {
+  const profile = modes[game.mode];
+  activeRestriction = profile.restriction.generate();
+  restrictionText.textContent = profile.restriction.text(activeRestriction);
+}
+
+function updateLabels() {
+  labels.angle.textContent = `${controls.angle.value}°`;
+  labels.power.textContent = controls.power.value;
+  labels.gravity.textContent = `${Number(controls.gravity.value).toFixed(1)} m/s²`;
+  labels.wind.textContent = Number(controls.wind.value).toFixed(1);
 }
 
 function updateScoreboard() {
@@ -184,194 +167,128 @@ function resetBall() {
   ball.y = player.y - 13;
   ball.vx = 0;
   ball.vy = 0;
+  ball.spin = 0;
   ball.inFlight = false;
-  ball.scoredThisShot = false;
-  ball.resultProcessed = false;
-  ball.outOfBounds = false;
-  shotFactors.banked = false;
-}
-
-function getProfile() {
-  return modeProfiles[game.mode];
-}
-
-function applyModeCardSelection() {
-  modeButtons.forEach((button) => {
-    button.classList.toggle("selected", button.dataset.mode === selectedMode);
-  });
-}
-
-function pickShotCommand() {
-  const pool = modeCommandIndexes[game.mode];
-  if (!pool.length) {
-    currentCommand = null;
-    shotCommandText.textContent = "Easy command feed: no restrictions. Just shoot and score.";
-    return;
-  }
-  const pick = pool[Math.floor(Math.random() * pool.length)];
-  currentCommand = shotCommands[pick];
-  shotCommandText.textContent = currentCommand.text;
-}
-
-function updateModeTexts() {
-  const profile = getProfile();
-  modeDisplay.textContent = profile.label;
-  modeRuleText.textContent = profile.description;
-}
-
-function startSession() {
-  const cleanName = playerNameInput.value.trim();
-  game.playerName = cleanName || "Guest";
-  game.mode = selectedMode;
-  game.started = true;
-  game.score = 0;
-  game.shots = 0;
-  game.streak = 0;
-  game.bestStreak = 0;
-  playerDisplay.textContent = game.playerName;
-  updateModeTexts();
-  pickShotCommand();
-  updateScoreboard();
-  resetBall();
-  entryOverlay.classList.add("hidden");
-  setStatus(`Welcome ${game.playerName}. ${modeProfiles[game.mode].label} is live.`, false, false);
-}
-
-function evaluateCommand() {
-  if (game.mode === "easy" || !currentCommand) return true;
-  return currentCommand.test(shotFactors);
-}
-
-function scoreShot() {
-  const profile = getProfile();
-  const commandPass = evaluateCommand();
-  if (!commandPass) {
-    game.streak = 0;
-    setStatus("Shot entered the hoop, but command failed. No points this shot.", false, true);
-    return;
-  }
-
-  const base = shotFactors.banked ? 90 : 70;
-  const modeBoost = Math.round(base * profile.scoreMultiplier);
-  game.score += modeBoost;
-  game.streak += 1;
-  game.bestStreak = Math.max(game.bestStreak, game.streak);
-  if (game.streak >= 3) {
-    game.score += Math.round(18 * profile.scoreMultiplier);
-  }
-  setStatus(
-    `${shotFactors.banked ? "Bank shot" : "Clean bucket"}! +${modeBoost} (${profile.label})`,
-    true,
-    false
-  );
-}
-
-function registerMiss(message) {
-  game.streak = 0;
-  setStatus(message, false, true);
+  ball.scored = false;
+  ball.processed = false;
+  ball.out = false;
+  liveFactors.banked = false;
 }
 
 function launchShot() {
-  if (!game.started) {
-    setStatus("Pick your name and mode first.", false, true);
-    return;
-  }
   if (ball.inFlight) return;
 
-  const profile = getProfile();
-  const angleInput = Number(controls.angle.value);
-  const powerInput = Number(controls.power.value);
-  const spinInput = Number(controls.spin.value);
+  const profile = modes[game.mode];
+  const angle = Number(controls.angle.value);
+  const power = Number(controls.power.value);
 
-  const angleWithNoise = angleInput + randomBetween(-profile.angleJitter, profile.angleJitter);
-  const powerWithNoise = powerInput + randomBetween(-profile.powerJitter, profile.powerJitter);
-  const angle = angleWithNoise * (Math.PI / 180);
-  const speed = Math.max(20, powerWithNoise) * 4.05;
+  liveFactors.shotAngle = angle;
+  liveFactors.shotPower = power;
+  liveFactors.wind = Number(controls.wind.value) + randomBetween(-profile.windJitter, profile.windJitter);
+  liveFactors.gravity = Number(controls.gravity.value) + randomBetween(-profile.gravityJitter, profile.gravityJitter);
+  liveFactors.banked = false;
 
-  ball.vx = Math.cos(angle) * speed;
-  ball.vy = -Math.sin(angle) * speed;
-  ball.spin = spinInput * 0.1;
+  const launchAngle = (angle + randomBetween(-profile.angleJitter, profile.angleJitter)) * (Math.PI / 180);
+  const launchPower = Math.max(25, power);
+  const speed = launchPower * 4.05;
+
+  ball.vx = Math.cos(launchAngle) * speed;
+  ball.vy = -Math.sin(launchAngle) * speed;
+  ball.spin = randomBetween(-0.35, 0.35);
   ball.inFlight = true;
-  ball.scoredThisShot = false;
-  ball.resultProcessed = false;
-  ball.outOfBounds = false;
+  ball.scored = false;
+  ball.processed = false;
+  ball.out = false;
 
-  if (game.mode === "easy") {
-    const idealVx = (hoopCenterX - ball.x) / 2.2;
-    ball.vx = ball.vx * 0.72 + idealVx * 0.28;
-  }
-
-  shotFactors.appliedWind = Number(controls.wind.value) + randomBetween(-profile.windVariance, profile.windVariance);
-  shotFactors.appliedGravity =
-    Number(controls.gravity.value) + randomBetween(-profile.gravityVariance, profile.gravityVariance);
-  shotFactors.angleInput = angleInput;
-  shotFactors.powerInput = powerInput;
-  shotFactors.spinInput = spinInput;
-  shotFactors.banked = false;
+  const targetVx = (hoopX - ball.x) / 2.25;
+  ball.vx = ball.vx * (1 - profile.assist) + targetVx * profile.assist;
 
   game.shots += 1;
-  setStatus("Ball launched with live physics modifiers...", false, false);
+  setStatus("Shot launched.", "normal");
 }
 
-function collideWithRim(r) {
+function resolveShotIfNeeded(made) {
+  if (ball.processed) return;
+  ball.processed = true;
+
+  if (!made) {
+    game.streak = 0;
+    setStatus("Missed shot. Adjust angle, power, or physics sliders.", "bad");
+    prepareRestriction();
+    return;
+  }
+
+  const profile = modes[game.mode];
+  const passed = profile.restriction.pass(
+    { angle: liveFactors.shotAngle, power: liveFactors.shotPower, banked: liveFactors.banked },
+    activeRestriction
+  );
+
+  if (!passed) {
+    game.streak = 0;
+    setStatus("Made the basket, but failed the mode restriction (no points).", "bad");
+    prepareRestriction();
+    return;
+  }
+
+  const points = liveFactors.banked ? 80 : 60;
+  game.score += points;
+  game.streak += 1;
+  game.bestStreak = Math.max(game.bestStreak, game.streak);
+  if (game.streak >= 3) game.score += 20;
+
+  const playerName = playerNameInput.value.trim() || "Guest";
+  setStatus(`${playerName} scored! +${points}`, "good");
+  prepareRestriction();
+}
+
+function collideRim(r) {
   const dx = ball.x - r.x;
   const dy = ball.y - r.y;
   const distance = Math.hypot(dx, dy);
   const minDist = ball.radius + r.radius;
-  if (distance < minDist) {
-    const nx = dx / (distance || 1);
-    const ny = dy / (distance || 1);
-    const overlap = minDist - distance;
-    ball.x += nx * overlap;
-    ball.y += ny * overlap;
-    const relVel = ball.vx * nx + ball.vy * ny;
-    if (relVel < 0) {
-      const restitution = 0.72;
-      ball.vx -= (1 + restitution) * relVel * nx;
-      ball.vy -= (1 + restitution) * relVel * ny;
-      ball.vx += ball.spin * -ny * 1.1;
-      ball.vy += ball.spin * nx * 1.1;
-    }
-  }
-}
+  if (distance >= minDist) return;
 
-function nextCommandAfterShot() {
-  if (game.mode !== "easy") {
-    pickShotCommand();
+  const nx = dx / (distance || 1);
+  const ny = dy / (distance || 1);
+  const overlap = minDist - distance;
+  ball.x += nx * overlap;
+  ball.y += ny * overlap;
+
+  const rel = ball.vx * nx + ball.vy * ny;
+  if (rel < 0) {
+    const bounce = 0.72;
+    ball.vx -= (1 + bounce) * rel * nx;
+    ball.vy -= (1 + bounce) * rel * ny;
   }
 }
 
 function physicsStep(dt) {
   if (!ball.inFlight) return;
 
-  const profile = getProfile();
-  const drag = Number(controls.drag.value) * profile.dragScale;
-  const turbulence = Math.sin(game.time * 6.4) * profile.turbulence;
-  const wind = shotFactors.appliedWind * 8 + turbulence;
-  const g = shotFactors.appliedGravity * 75;
-  externalText.textContent = `Live factors: wind ${shotFactors.appliedWind.toFixed(1)}, gravity ${shotFactors.appliedGravity.toFixed(1)} m/s²`;
-
+  const wind = liveFactors.wind * 8;
+  const gravity = liveFactors.gravity * 75;
+  const drag = 0.012;
   const speed = Math.hypot(ball.vx, ball.vy);
-  const magnus = ball.spin * Math.max(0, speed) * 0.0018;
-  const ax = wind - drag * ball.vx * speed + magnus * -ball.vy;
-  const ay = g - drag * ball.vy * speed + magnus * ball.vx;
+  const ax = wind - drag * ball.vx * speed;
+  const ay = gravity - drag * ball.vy * speed;
 
   ball.vx += ax * dt;
   ball.vy += ay * dt;
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
-  ball.spin *= 0.998;
+
+  externalText.textContent = `External factors: wind ${liveFactors.wind.toFixed(1)}, gravity ${liveFactors.gravity.toFixed(1)} m/s²`;
 
   if (ball.y + ball.radius > floorY) {
     ball.y = floorY - ball.radius;
-    if (Math.abs(ball.vy) > 28) {
+    if (Math.abs(ball.vy) > 24) {
       ball.vy *= -0.62;
-      ball.vx *= 0.84;
-      ball.spin *= 0.8;
+      ball.vx *= 0.86;
     } else {
       ball.vy = 0;
-      ball.vx *= 0.88;
-      if (Math.abs(ball.vx) < 10) ball.vx = 0;
+      ball.vx *= 0.9;
+      if (Math.abs(ball.vx) < 8) ball.vx = 0;
     }
   }
 
@@ -383,68 +300,49 @@ function physicsStep(dt) {
     ball.vx > 0
   ) {
     ball.x = backboard.x - ball.radius;
-    ball.vx *= -0.75;
-    ball.spin += 0.75;
-    shotFactors.banked = true;
+    ball.vx *= -0.78;
+    liveFactors.banked = true;
   }
 
-  collideWithRim(rim);
-  collideWithRim(rim2);
+  collideRim(rim);
+  collideRim(rim2);
 
-  const tolerance = getProfile().rimTolerance;
-  const wentThroughHoop =
-    !ball.scoredThisShot &&
-    ball.vy > 20 &&
+  const tolerance = modes[game.mode].rimTolerance;
+  const made =
+    !ball.scored &&
+    ball.vy > 16 &&
     ball.x > rim.x - tolerance &&
     ball.x < rim2.x + tolerance &&
-    ball.y > hoopY - (15 + tolerance * 0.15) &&
-    ball.y < hoopY + (18 + tolerance * 0.2);
+    ball.y > hoopY - 14 &&
+    ball.y < hoopY + 21;
 
-  if (wentThroughHoop && !ball.resultProcessed) {
-    ball.scoredThisShot = true;
-    ball.resultProcessed = true;
-    scoreShot();
+  if (made) {
+    ball.scored = true;
+    resolveShotIfNeeded(true);
   }
 
   const out = ball.x > canvas.width + 70 || ball.x < -70 || ball.y > canvas.height + 90;
-  if (out && !ball.outOfBounds) {
-    ball.outOfBounds = true;
-    if (!ball.resultProcessed) {
-      ball.resultProcessed = true;
-      registerMiss("Missed shot. Adjust launch angle, power, and mode factors.");
-    }
+  if (out && !ball.out) {
+    ball.out = true;
+    resolveShotIfNeeded(false);
   }
 
-  if (ball.outOfBounds || (!ball.inFlight && ball.vx === 0 && ball.vy === 0)) {
+  if (ball.out || (Math.abs(ball.vx) < 1 && Math.abs(ball.vy) < 1 && ball.y >= floorY - ball.radius)) {
+    if (!ball.scored) resolveShotIfNeeded(false);
     resetBall();
-    nextCommandAfterShot();
-  } else if (Math.abs(ball.vx) < 1 && Math.abs(ball.vy) < 1 && ball.y >= floorY - ball.radius) {
-    if (!ball.resultProcessed) {
-      ball.resultProcessed = true;
-      registerMiss("Shot died out before scoring. Re-tune your setup.");
-    }
-    resetBall();
-    nextCommandAfterShot();
   }
 }
 
 function drawBackground() {
   const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0, "#15203e");
-  grad.addColorStop(1, "#060a15");
+  grad.addColorStop(0, "#182649");
+  grad.addColorStop(1, "#081022");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "#4f5f88";
-  for (let i = 0; i < 45; i += 1) {
-    const x = (i * 81 + Math.sin(game.time * 0.4 + i) * 20) % canvas.width;
-    const y = 40 + (i % 5) * 30;
-    ctx.fillRect(x, y, 2, 2);
-  }
-
   ctx.fillStyle = "#13203c";
   ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
-  ctx.strokeStyle = "#254074";
+  ctx.strokeStyle = "#284677";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, floorY);
@@ -453,7 +351,7 @@ function drawBackground() {
 }
 
 function drawCourt() {
-  ctx.strokeStyle = "#7fa4ff";
+  ctx.strokeStyle = "#7ea5ff";
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 8]);
   ctx.beginPath();
@@ -461,35 +359,27 @@ function drawCourt() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  ctx.fillStyle = "#d8e7ff";
+  ctx.fillStyle = "#dfebff";
   ctx.fillRect(backboard.x, backboard.y, backboard.w, backboard.h);
 
-  ctx.strokeStyle = "#ff7a5f";
+  ctx.strokeStyle = "#ff7d61";
   ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(rim.x, rim.y);
   ctx.lineTo(rim2.x, rim2.y);
   ctx.stroke();
-
-  ctx.strokeStyle = "rgba(240,240,255,0.85)";
-  ctx.lineWidth = 1.5;
-  for (let i = 0; i < 6; i += 1) {
-    const nx = rim.x + (i / 5) * (rim2.x - rim.x);
-    ctx.beginPath();
-    ctx.moveTo(nx, rim.y + 2);
-    ctx.lineTo(nx + Math.sin(game.time * 2 + i) * 4, rim.y + 26);
-    ctx.stroke();
-  }
 }
 
 function drawPlayer() {
-  ctx.fillStyle = "#2a3963";
+  ctx.fillStyle = "#2b3a63";
   ctx.fillRect(player.x - 42, floorY - 120, 56, 104);
-  ctx.fillStyle = "#ffcf9c";
+
+  ctx.fillStyle = "#ffd0a0";
   ctx.beginPath();
   ctx.arc(player.x - 16, floorY - 138, 16, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "#ffcf9c";
+
+  ctx.strokeStyle = "#ffd0a0";
   ctx.lineWidth = 8;
   ctx.lineCap = "round";
   ctx.beginPath();
@@ -498,30 +388,27 @@ function drawPlayer() {
   ctx.stroke();
 }
 
-function drawTrajectoryPreview() {
+function drawPreview() {
   if (!controls.preview.checked || ball.inFlight) return;
+
   let px = player.x + 26;
   let py = player.y - 13;
   const angle = Number(controls.angle.value) * (Math.PI / 180);
   const power = Number(controls.power.value);
   let vx = Math.cos(angle) * power * 4.05;
   let vy = -Math.sin(angle) * power * 4.05;
-  let spin = Number(controls.spin.value) * 0.1;
-  const g = Number(controls.gravity.value) * 75;
-  const drag = Number(controls.drag.value);
   const wind = Number(controls.wind.value) * 8;
+  const g = Number(controls.gravity.value) * 75;
+  const drag = 0.012;
 
-  ctx.fillStyle = "rgba(125, 229, 192, 0.65)";
-  for (let i = 0; i < 120; i += 1) {
+  ctx.fillStyle = "rgba(128, 234, 196, 0.7)";
+  for (let i = 0; i < 110; i += 1) {
     const speed = Math.hypot(vx, vy);
-    const magnus = spin * Math.max(0, speed) * 0.0018;
-    const ax = wind - drag * vx * speed + magnus * -vy;
-    const ay = g - drag * vy * speed + magnus * vx;
-    vx += ax * 0.016;
-    vy += ay * 0.016;
+    vx += (wind - drag * vx * speed) * 0.016;
+    vy += (g - drag * vy * speed) * 0.016;
     px += vx * 0.016;
     py += vy * 0.016;
-    spin *= 0.998;
+
     if (i % 3 === 0) {
       ctx.beginPath();
       ctx.arc(px, py, 2.2, 0, Math.PI * 2);
@@ -534,46 +421,39 @@ function drawTrajectoryPreview() {
 function drawBall() {
   ctx.save();
   ctx.translate(ball.x, ball.y);
-  ctx.rotate(game.time * 9 + ball.spin * 0.1);
-  ctx.fillStyle = "#f48f31";
+  ctx.rotate(game.time * 7);
+  ctx.fillStyle = "#f69033";
   ctx.beginPath();
   ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "#5f2b06";
+
+  ctx.strokeStyle = "#5e2d07";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(0, 0, ball.radius - 1.8, 0.15, Math.PI - 0.15);
+  ctx.arc(0, 0, ball.radius - 1.6, 0.2, Math.PI - 0.2);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(0, 0, ball.radius - 1.8, Math.PI + 0.15, Math.PI * 2 - 0.15);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-ball.radius + 1.8, -2);
-  ctx.quadraticCurveTo(0, 3.5, ball.radius - 1.8, -2);
+  ctx.arc(0, 0, ball.radius - 1.6, Math.PI + 0.2, Math.PI * 2 - 0.2);
   ctx.stroke();
   ctx.restore();
 }
 
-function drawWindIndicator() {
-  const shownWind = ball.inFlight ? shotFactors.appliedWind : Number(controls.wind.value);
-  const strength = Math.abs(shownWind);
-  const dir = shownWind >= 0 ? 1 : -1;
-  const baseX = 100;
+function drawWindArrow() {
+  const wind = ball.inFlight ? liveFactors.wind : Number(controls.wind.value);
+  const dir = wind >= 0 ? 1 : -1;
+  const strength = Math.abs(wind);
+  const baseX = 92;
   const baseY = 48;
-  ctx.fillStyle = "#dce6ff";
+
+  ctx.fillStyle = "#dcebff";
   ctx.font = "14px sans-serif";
-  ctx.fillText(`Wind: ${shownWind.toFixed(1)}`, baseX, baseY - 10);
-  ctx.strokeStyle = strength > 8 ? "#ffae6b" : "#91cffd";
+  ctx.fillText(`Wind ${wind.toFixed(1)}`, baseX, baseY - 12);
+
+  ctx.strokeStyle = strength > 7 ? "#ffb06d" : "#95d0ff";
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(baseX, baseY);
   ctx.lineTo(baseX + dir * (20 + strength * 3), baseY);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(baseX + dir * (20 + strength * 3), baseY);
-  ctx.lineTo(baseX + dir * (12 + strength * 3), baseY - 5);
-  ctx.moveTo(baseX + dir * (20 + strength * 3), baseY);
-  ctx.lineTo(baseX + dir * (12 + strength * 3), baseY + 5);
   ctx.stroke();
 }
 
@@ -581,9 +461,9 @@ function draw() {
   drawBackground();
   drawCourt();
   drawPlayer();
-  drawTrajectoryPreview();
+  drawPreview();
   drawBall();
-  drawWindIndicator();
+  drawWindArrow();
 }
 
 function tick() {
@@ -595,47 +475,27 @@ function tick() {
 }
 
 modeButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    selectedMode = button.dataset.mode;
-    applyModeCardSelection();
-  });
+  button.addEventListener("click", () => setMode(button.dataset.mode));
 });
-
-startBtn.addEventListener("click", startSession);
 
 document.getElementById("shootBtn").addEventListener("click", launchShot);
-
 document.getElementById("resetBtn").addEventListener("click", () => {
   resetBall();
-  setStatus("Ball reset. Try a fresh shot.", false, false);
+  setStatus("Ball reset.", "normal");
 });
 
-document.getElementById("newCommandBtn").addEventListener("click", () => {
-  if (!game.started) {
-    setStatus("Pick your mode first.", false, true);
-    return;
-  }
-  pickShotCommand();
-  setStatus("Shot command refreshed.", false, false);
-});
-
-Object.values(controls).forEach((el) => {
-  el.addEventListener("input", updateLabelValues);
-});
-
-window.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
-    e.preventDefault();
+window.addEventListener("keydown", (event) => {
+  if (event.code === "Space") {
+    event.preventDefault();
     launchShot();
   }
-  if (e.code === "Enter" && !game.started) {
-    startSession();
-  }
 });
 
-applyModeCardSelection();
-updateModeTexts();
-updateLabelValues();
-pickShotCommand();
-externalText.textContent = "Live factors: wait for launch.";
+Object.values(controls).forEach((control) => {
+  control.addEventListener("input", updateLabels);
+});
+
+updateLabels();
+setMode("easy");
+updateScoreboard();
 tick();
