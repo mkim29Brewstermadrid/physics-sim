@@ -129,9 +129,9 @@ function randomBetween(min, max) {
 
 function setStatus(text, state = "normal") {
   statusText.textContent = text;
-  if (state === "good") statusText.style.color = "#75efc2";
-  else if (state === "bad") statusText.style.color = "#ffacac";
-  else statusText.style.color = "#ffd8a0";
+  if (state === "good") statusText.style.color = "#7cf0c1";
+  else if (state === "bad") statusText.style.color = "#ff9a86";
+  else statusText.style.color = "#f0d38d";
 }
 
 function setMode(mode) {
@@ -335,14 +335,14 @@ function physicsStep(dt) {
 
 function drawBackground() {
   const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0, "#182649");
-  grad.addColorStop(1, "#081022");
+  grad.addColorStop(0, "#12322e");
+  grad.addColorStop(1, "#060f0d");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "#13203c";
+  ctx.fillStyle = "#142824";
   ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
-  ctx.strokeStyle = "#284677";
+  ctx.strokeStyle = "#3f6d63";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, floorY);
@@ -351,7 +351,7 @@ function drawBackground() {
 }
 
 function drawCourt() {
-  ctx.strokeStyle = "#7ea5ff";
+  ctx.strokeStyle = "#7cf0c1";
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 8]);
   ctx.beginPath();
@@ -359,10 +359,10 @@ function drawCourt() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  ctx.fillStyle = "#dfebff";
+  ctx.fillStyle = "#e9f7f0";
   ctx.fillRect(backboard.x, backboard.y, backboard.w, backboard.h);
 
-  ctx.strokeStyle = "#ff7d61";
+  ctx.strokeStyle = "#ff8a4c";
   ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(rim.x, rim.y);
@@ -371,15 +371,15 @@ function drawCourt() {
 }
 
 function drawPlayer() {
-  ctx.fillStyle = "#2b3a63";
+  ctx.fillStyle = "#35524b";
   ctx.fillRect(player.x - 42, floorY - 120, 56, 104);
 
-  ctx.fillStyle = "#ffd0a0";
+  ctx.fillStyle = "#f4c8a1";
   ctx.beginPath();
   ctx.arc(player.x - 16, floorY - 138, 16, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = "#ffd0a0";
+  ctx.strokeStyle = "#f4c8a1";
   ctx.lineWidth = 8;
   ctx.lineCap = "round";
   ctx.beginPath();
@@ -401,7 +401,7 @@ function drawPreview() {
   const g = Number(controls.gravity.value) * 75;
   const drag = 0.012;
 
-  ctx.fillStyle = "rgba(128, 234, 196, 0.7)";
+  ctx.fillStyle = "rgba(124, 240, 193, 0.72)";
   for (let i = 0; i < 110; i += 1) {
     const speed = Math.hypot(vx, vy);
     vx += (wind - drag * vx * speed) * 0.016;
@@ -422,12 +422,12 @@ function drawBall() {
   ctx.save();
   ctx.translate(ball.x, ball.y);
   ctx.rotate(game.time * 7);
-  ctx.fillStyle = "#f69033";
+  ctx.fillStyle = "#ffab5f";
   ctx.beginPath();
   ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = "#5e2d07";
+  ctx.strokeStyle = "#6d3212";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(0, 0, ball.radius - 1.6, 0.2, Math.PI - 0.2);
@@ -445,11 +445,11 @@ function drawWindArrow() {
   const baseX = 92;
   const baseY = 48;
 
-  ctx.fillStyle = "#dcebff";
+  ctx.fillStyle = "#eaf8f3";
   ctx.font = "14px sans-serif";
   ctx.fillText(`Wind ${wind.toFixed(1)}`, baseX, baseY - 12);
 
-  ctx.strokeStyle = strength > 7 ? "#ffb06d" : "#95d0ff";
+  ctx.strokeStyle = strength > 7 ? "#ffb06d" : "#7cf0c1";
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(baseX, baseY);
