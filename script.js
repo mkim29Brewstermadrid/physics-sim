@@ -99,28 +99,31 @@ const lessons = {
 const modes = {
   easy: {
     label: "Easy",
+    description: "Most shots are makeable. Restriction: power must be at least 42.",
     rimTolerance: 18,
     angleJitter: 0.4,
     windJitter: 1.2,
     gravityJitter: 0.2,
-    assist: 0.28,
+    assist: 0.26,
     restriction: {
-      generate: () => ({ minPower: 40 }),
-      text: (r) => `Restriction: keep power at least ${r.minPower}.`,
+      name: "Power floor",
+      generate: () => ({ minPower: 42 }),
+      text: (r) => `Restriction: Keep power >= ${r.minPower}.`,
       pass: (shot, r) => shot.power >= r.minPower
     }
   },
   medium: {
     label: "Medium",
+    description: "Slightly harder, still fair. Restriction: your angle must be inside a random zone.",
     rimTolerance: 11,
-    angleJitter: 1.2,
-    windJitter: 2.6,
-    gravityJitter: 0.42,
-    assist: 0.14,
+    angleJitter: 1.3,
+    windJitter: 2.5,
+    gravityJitter: 0.45,
+    assist: 0.12,
     restriction: {
       generate: () => {
-        const min = Math.round(39 + Math.random() * 10);
-        return { min, max: min + 18 };
+        const min = Math.round(40 + Math.random() * 10);
+        return { min, max: min + 16 };
       },
       text: (r) => `Restriction: launch angle must be ${r.min}°-${r.max}°.`,
       pass: (shot, r) => shot.angle >= r.min && shot.angle <= r.max
@@ -128,15 +131,16 @@ const modes = {
   },
   hard: {
     label: "Hard",
-    rimTolerance: 8,
-    angleJitter: 1.9,
-    windJitter: 3.7,
-    gravityJitter: 0.7,
-    assist: 0.08,
+    description: "Hardest but still possible. Restriction: angle must stay in a tighter random zone.",
+    rimTolerance: 7,
+    angleJitter: 2.1,
+    windJitter: 4.2,
+    gravityJitter: 0.75,
+    assist: 0.04,
     restriction: {
       generate: () => {
         const min = Math.round(46 + Math.random() * 8);
-        return { min, max: min + 12 };
+        return { min, max: min + 10 };
       },
       text: (r) => `Restriction: launch power must be ${r.min}-${r.max}.`,
       pass: (shot, r) => shot.power >= r.min && shot.power <= r.max
@@ -173,7 +177,30 @@ function randomBetween(min, max) {
 
 function setStatus(text, state = "normal") {
   statusText.textContent = text;
-  statusText.style.color = state === "good" ? "#72edc3" : state === "bad" ? "#ff9a9a" : "#ffe1b1";
+  if (state === "good") statusText.style.color = "#75efc2";
+  else if (state === "bad") statusText.style.color = "#ffacac";
+  else statusText.style.color = "#ffd8a0";
+}
+
+function setMode(mode) {
+  game.mode = mode;
+  modeButtons.forEach((b) => b.classList.toggle("selected", b.dataset.mode === mode));
+  modeDescription.textContent = modes[mode].description;
+  prepareRestriction();
+  setStatus(`${modes[mode].label} mode selected.`, "normal");
+}
+
+function prepareRestriction() {
+  const profile = modes[game.mode];
+  activeRestriction = profile.restriction.generate();
+  restrictionText.textContent = profile.restriction.text(activeRestriction);
+}
+
+function updateLabels() {
+  labels.angle.textContent = `${controls.angle.value}°`;
+  labels.power.textContent = controls.power.value;
+  labels.gravity.textContent = `${Number(controls.gravity.value).toFixed(1)} m/s²`;
+  labels.wind.textContent = Number(controls.wind.value).toFixed(1);
 }
 
 function updateScoreboard() {
@@ -382,9 +409,9 @@ function physicsStep(dt) {
   const made =
     !ball.scored &&
     ball.vy > 16 &&
-    ball.x > rim.x - tol &&
-    ball.x < rim2.x + tol &&
-    ball.y > hoopY - 15 &&
+    ball.x > rim.x - tolerance &&
+    ball.x < rim2.x + tolerance &&
+    ball.y > hoopY - 14 &&
     ball.y < hoopY + 21;
 
   if (made) {
@@ -434,14 +461,14 @@ function drawArrow(x, y, dx, dy, color, label) {
 
 function drawBackground() {
   const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0, "#e6f2ff");
-  grad.addColorStop(1, "#cfe3ff");
+  grad.addColorStop(0, "#182649");
+  grad.addColorStop(1, "#081022");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "#dbe8ff";
+  ctx.fillStyle = "#13203c";
   ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
-  ctx.strokeStyle = "#8ab0ea";
+  ctx.strokeStyle = "#284677";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, floorY);
@@ -450,7 +477,7 @@ function drawBackground() {
 }
 
 function drawCourt() {
-  ctx.strokeStyle = "#5f8de6";
+  ctx.strokeStyle = "#7ea5ff";
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 8]);
   ctx.beginPath();
@@ -458,7 +485,7 @@ function drawCourt() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  ctx.fillStyle = "#f4f9ff";
+  ctx.fillStyle = "#dfebff";
   ctx.fillRect(backboard.x, backboard.y, backboard.w, backboard.h);
   ctx.strokeStyle = "#8ab0ea";
   ctx.lineWidth = 2;
@@ -469,8 +496,8 @@ function drawCourt() {
   ctx.lineWidth = 3;
   ctx.strokeRect(backboard.x - 26, rim.y - 20, 24, 24);
 
-  ctx.strokeStyle = "#ff7f63";
-  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#ff7d61";
+  ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(rim.x, rim.y);
   ctx.lineTo(rim2.x, rim2.y);
@@ -498,15 +525,15 @@ function drawCourt() {
 }
 
 function drawPlayer() {
-  ctx.fillStyle = "#2d3e6b";
+  ctx.fillStyle = "#2b3a63";
   ctx.fillRect(player.x - 42, floorY - 120, 56, 104);
 
-  ctx.fillStyle = "#ffd0a0";
+  ctx.fillStyle = "#f4c8a1";
   ctx.beginPath();
   ctx.arc(player.x - 16, floorY - 138, 16, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = "#ffd0a0";
+  ctx.strokeStyle = "#f4c8a1";
   ctx.lineWidth = 8;
   ctx.lineCap = "round";
   ctx.beginPath();
@@ -527,7 +554,7 @@ function drawPreview() {
   const gravity = Number(controls.gravity.value) * 75;
   const dragC = 0.011;
 
-  ctx.fillStyle = "rgba(76, 186, 133, 0.72)";
+  ctx.fillStyle = "rgba(128, 234, 196, 0.7)";
   for (let i = 0; i < 110; i += 1) {
     const speed = Math.hypot(vx, vy);
     vx += (wind - dragC * vx * speed) * 0.016;
@@ -575,13 +602,13 @@ function drawLaunchAngleGuide() {
 function drawBall() {
   ctx.save();
   ctx.translate(ball.x, ball.y);
-  ctx.rotate(game.time * 6.5);
-  ctx.fillStyle = "#f69035";
+  ctx.rotate(game.time * 7);
+  ctx.fillStyle = "#f69033";
   ctx.beginPath();
   ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = "#5f2d08";
+  ctx.strokeStyle = "#5e2d07";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(0, 0, ball.radius - 1.7, 0.2, Math.PI - 0.2);
@@ -592,20 +619,23 @@ function drawBall() {
   ctx.restore();
 }
 
-function drawForceArrows() {
-  const baseX = ball.x + 14;
-  const baseY = ball.y - 10;
+function drawWindArrow() {
+  const wind = ball.inFlight ? liveFactors.wind : Number(controls.wind.value);
+  const dir = wind >= 0 ? 1 : -1;
+  const strength = Math.abs(wind);
+  const baseX = 92;
+  const baseY = 48;
 
-  if (ball.inFlight) {
-    drawArrow(baseX, baseY, ball.vx * 0.03, ball.vy * 0.03, "#1dbd91", "velocity");
-    drawArrow(baseX, baseY, forceState.wind * 1.5, 0, "#4f8fe3", "wind");
-    drawArrow(baseX, baseY, 0, 20, "#d88a2e", "gravity");
-    drawArrow(baseX, baseY, forceState.dragX * 6, forceState.dragY * 6, "#9961c9", "drag");
-  } else {
-    const w = Number(controls.wind.value);
-    drawArrow(96, 62, w * 3, 0, "#4f8fe3", "wind");
-    drawArrow(96, 62, 0, 20, "#d88a2e", "gravity");
-  }
+  ctx.fillStyle = "#dcebff";
+  ctx.font = "14px sans-serif";
+  ctx.fillText(`Wind ${wind.toFixed(1)}`, baseX, baseY - 12);
+
+  ctx.strokeStyle = strength > 7 ? "#ffb06d" : "#95d0ff";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(baseX, baseY);
+  ctx.lineTo(baseX + dir * (20 + strength * 3), baseY);
+  ctx.stroke();
 }
 
 function draw() {
