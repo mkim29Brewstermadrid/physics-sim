@@ -62,32 +62,32 @@ const game = {
 const modes = {
   easy: {
     label: "Easy",
-    description: "Most shots are makeable. Restriction: power must be at least 42.",
-    rimTolerance: 18,
-    angleJitter: 0.4,
-    windJitter: 1.2,
-    gravityJitter: 0.2,
-    assist: 0.26,
+    description: "Most shots are makeable. Restriction: power must be at least 36.",
+    rimTolerance: 24,
+    angleJitter: 0.25,
+    windJitter: 0.7,
+    gravityJitter: 0.12,
+    assist: 0.34,
     restriction: {
       name: "Power floor",
-      generate: () => ({ minPower: 42 }),
+      generate: () => ({ minPower: 36 }),
       text: (r) => `Restriction: Keep power >= ${r.minPower}.`,
       pass: (shot, r) => shot.power >= r.minPower
     }
   },
   medium: {
     label: "Medium",
-    description: "Slightly harder, still fair. Restriction: your angle must be inside a random zone.",
-    rimTolerance: 11,
-    angleJitter: 1.3,
-    windJitter: 2.5,
-    gravityJitter: 0.45,
-    assist: 0.12,
+    description: "Still fair. Restriction: your angle must be inside a random zone.",
+    rimTolerance: 15,
+    angleJitter: 0.9,
+    windJitter: 1.6,
+    gravityJitter: 0.28,
+    assist: 0.2,
     restriction: {
       name: "Angle zone",
       generate: () => {
-        const min = Math.round(40 + Math.random() * 10);
-        return { min, max: min + 16 };
+        const min = Math.round(36 + Math.random() * 8);
+        return { min, max: min + 22 };
       },
       text: (r) => `Restriction: Angle must stay between ${r.min}° and ${r.max}°.`,
       pass: (shot, r) => shot.angle >= r.min && shot.angle <= r.max
@@ -95,17 +95,17 @@ const modes = {
   },
   hard: {
     label: "Hard",
-    description: "Hardest but still possible. Restriction: angle must stay in a tighter random zone.",
-    rimTolerance: 7,
-    angleJitter: 2.1,
-    windJitter: 4.2,
-    gravityJitter: 0.75,
-    assist: 0.04,
+    description: "Hardest but still possible. Restriction: angle must stay in a tight random zone.",
+    rimTolerance: 10,
+    angleJitter: 1.5,
+    windJitter: 2.8,
+    gravityJitter: 0.48,
+    assist: 0.1,
     restriction: {
       name: "Tight angle zone",
       generate: () => {
-        const min = Math.round(46 + Math.random() * 8);
-        return { min, max: min + 10 };
+        const min = Math.round(42 + Math.random() * 8);
+        return { min, max: min + 14 };
       },
       text: (r) => `Restriction: Angle must stay between ${r.min}° and ${r.max}°.`,
       pass: (shot, r) => shot.angle >= r.min && shot.angle <= r.max
@@ -313,8 +313,8 @@ function physicsStep(dt) {
     ball.vy > 16 &&
     ball.x > rim.x - tolerance &&
     ball.x < rim2.x + tolerance &&
-    ball.y > hoopY - 14 &&
-    ball.y < hoopY + 21;
+    ball.y > hoopY - 18 &&
+    ball.y < hoopY + 28;
 
   if (made) {
     ball.scored = true;
