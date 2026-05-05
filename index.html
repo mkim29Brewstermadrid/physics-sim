@@ -25,23 +25,23 @@
     <section id="levelScreen" class="screen hidden">
       <div class="card level-card">
         <h2>Welcome, <span id="welcomeName"></span></h2>
-        <p class="sub">Choose difficulty and test your physics instincts.</p>
+        <p class="sub">Choose a learning path from ideal projectile motion to full drag + wind dynamics.</p>
         <div class="level-grid">
           <button class="level-option selected" data-level="easy">
             <strong>Easy</strong>
-            <span>All factors are controllable.</span>
+            <span>Vacuum mode only: learn vx, vy, and gravity with clean kinematics.</span>
           </button>
           <button class="level-option" data-level="medium">
             <strong>Medium</strong>
-            <span>Locked crosswind challenges your aim.</span>
+            <span>Add drag and mass: compare vacuum vs air resistance behavior.</span>
           </button>
           <button class="level-option" data-level="hard">
             <strong>Hard</strong>
-            <span>Locked high drag kills speed fast.</span>
+            <span>Full model: drag + wind with stricter shot precision.</span>
           </button>
         </div>
         <div class="level-actions">
-          <button id="startGameBtn" class="btn btn-primary">Start Game</button>
+          <button id="startGameBtn" class="btn btn-primary">Start Simulation</button>
           <button id="changeNameBtn" class="btn btn-secondary">Change Name</button>
         </div>
       </div>
@@ -59,6 +59,22 @@
       <div class="layout">
         <section class="card court-card">
           <canvas id="courtCanvas" width="980" height="560" aria-label="Basketball physics simulator"></canvas>
+          <section class="readout readout-court">
+            <h3>Live Physics Readout</h3>
+            <p id="coordNote" class="coord-note"></p>
+            <div class="readout-grid">
+              <div><span>Initial speed</span><strong id="speedReadout">0.0 px/s</strong></div>
+              <div><span>vx (horizontal)</span><strong id="vxReadout">0.0 px/s</strong></div>
+              <div><span>vy (vertical)</span><strong id="vyReadout">0.0 px/s</strong></div>
+              <div><span>ax (net)</span><strong id="axReadout">0.0 px/s²</strong></div>
+              <div><span>ay (net)</span><strong id="ayReadout">0.0 px/s²</strong></div>
+              <div><span>Flight time t</span><strong id="timeReadout">0.00 s</strong></div>
+            </div>
+            <div class="equations">
+              <p>x = x₀ + vₓt → <span id="xEqReadout"></span></p>
+              <p>y = y₀ + vᵧt + ½at² → <span id="yEqReadout"></span></p>
+            </div>
+          </section>
         </section>
 
         <aside class="card panel">
@@ -85,8 +101,8 @@
           </div>
 
           <div class="control-row">
-            <label for="windInput">Wind <span id="windValue">0.0</span></label>
-            <input id="windInput" type="range" min="-18" max="18" step="0.1" value="0" />
+            <label for="massInput">Mass (kg) <span id="massValue">0.62</span></label>
+            <input id="massInput" type="range" min="0.3" max="2.2" step="0.01" value="0.62" />
           </div>
 
           <div class="control-row">
@@ -94,9 +110,24 @@
             <input id="dragInput" type="range" min="0.003" max="0.028" step="0.001" value="0.010" />
           </div>
 
+          <div class="control-row">
+            <label for="windInput">Wind <span id="windValue">0.0</span></label>
+            <input id="windInput" type="range" min="-18" max="18" step="0.1" value="0" />
+          </div>
+
+          <div class="preview-row">
+            <input id="vacuumToggle" type="checkbox" checked />
+            <label for="vacuumToggle">Vacuum mode (no drag, mass-independent path)</label>
+          </div>
+
           <div class="preview-row">
             <input id="previewToggle" type="checkbox" checked />
             <label for="previewToggle">Show trajectory preview</label>
+          </div>
+
+          <div class="decomposition-row">
+            <div><span>Launch vx</span><strong id="sideVxReadout">0.0 px/s</strong></div>
+            <div><span>Launch vy</span><strong id="sideVyReadout">0.0 px/s</strong></div>
           </div>
 
           <div class="actions">
