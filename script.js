@@ -27,7 +27,6 @@ const gravityInput = document.getElementById("gravityInput");
 const massInput = document.getElementById("massInput");
 const dragInput = document.getElementById("dragInput");
 const windInput = document.getElementById("windInput");
-const vacuumToggle = document.getElementById("vacuumToggle");
 const previewToggle = document.getElementById("previewToggle");
 
 const angleValue = document.getElementById("angleValue");
@@ -76,6 +75,7 @@ const ball = {
   ax: 0,
   ay: 0,
   t: 0,
+  path: [],
   r: 12,
   flying: false,
   scored: false
@@ -96,23 +96,38 @@ let activeShotPhysics = null;
 const levels = {
   easy: {
     label: "Easy · Ideal Projectile",
-    text: "Vacuum mode is locked ON. Focus on vx, vy, and gravity only.",
-    defaults: { vacuum: true, drag: 0.01, wind: 0 },
-    controls: { vacuum: false, mass: false, drag: false, wind: false },
+    text: "Vacuum mode locked. No wind. Full slider precision.",
+    defaults: { mass: 0.62, drag: 0.01, wind: 0 },
+    controls: { mass: false, drag: false, wind: false },
+    sliderRules: {
+      angle: { min: 20, max: 85, step: 1, value: 52 },
+      power: { min: 30, max: 92, step: 1, value: 58 },
+      gravity: { min: 6, max: 14, step: 0.1, value: 9.8 }
+    },
     forgiveness: 16
   },
   medium: {
-    label: "Medium · Drag + Mass",
-    text: "Use vacuum toggle to compare ideal motion vs drag. Wind is disabled.",
-    defaults: { vacuum: false, wind: 0 },
-    controls: { vacuum: true, mass: true, drag: true, wind: false },
+    label: "Medium · Vacuum + Crosswind",
+    text: "Vacuum mode + fixed +3.0 crosswind. Narrower angle/power ranges.",
+    defaults: { mass: 0.62, drag: 0.01, wind: 3.0 },
+    controls: { mass: false, drag: false, wind: false },
+    sliderRules: {
+      angle: { min: 30, max: 74, step: 2, value: 52 },
+      power: { min: 42, max: 86, step: 3, value: 62 },
+      gravity: { min: 8.5, max: 11.5, step: 0.2, value: 9.8 }
+    },
     forgiveness: 10
   },
   hard: {
-    label: "Hard · Full Forces",
-    text: "Full dynamics enabled: drag, mass, gravity, and crosswind.",
-    defaults: { vacuum: false, wind: 4.0 },
-    controls: { vacuum: true, mass: true, drag: true, wind: true },
+    label: "Hard · Vacuum + Strong Crosswind",
+    text: "Vacuum mode + fixed +6.0 crosswind. Tight ranges and coarse steps.",
+    defaults: { mass: 0.62, drag: 0.01, wind: 6.0 },
+    controls: { mass: false, drag: false, wind: false },
+    sliderRules: {
+      angle: { min: 38, max: 66, step: 4, value: 50 },
+      power: { min: 54, max: 78, step: 3, value: 63 },
+      gravity: { min: 9.2, max: 10.4, step: 0.4, value: 9.8 }
+    },
     forgiveness: 6
   }
 };
@@ -135,6 +150,7 @@ function resetBall() {
   ball.ax = 0;
   ball.ay = 0;
   ball.t = 0;
+  ball.path = [];
   ball.flying = false;
   ball.scored = false;
   activeShotPhysics = null;
@@ -154,6 +170,17 @@ function setControlEnabled(input, enabled) {
   if (row) row.classList.toggle("disabled-control", !enabled);
 }
 
+function applySliderRule(input, rule) {
+  input.min = String(rule.min);
+  input.max = String(rule.max);
+  input.step = String(rule.step);
+  const currentValue = Number(input.value);
+  const base = Number.isFinite(currentValue) ? currentValue : rule.value;
+  const clamped = Math.min(rule.max, Math.max(rule.min, base));
+  const snapped = Math.round((clamped - rule.min) / rule.step) * rule.step + rule.min;
+  input.value = String(Number(snapped.toFixed(3)));
+}
+
 function updateLabels() {
   angleValue.textContent = `${Number(angleInput.value).toFixed(0)}°`;
   powerValue.textContent = Number(powerInput.value).toFixed(0);
@@ -166,33 +193,17 @@ function updateLabels() {
 function applyLevelRules() {
   const cfg = levels[game.level];
 
-  if (cfg.defaults.vacuum !== undefined) {
-    vacuumToggle.checked = cfg.defaults.vacuum;
-  }
-  if (cfg.defaults.drag !== undefined) {
-    dragInput.value = cfg.defaults.drag;
-  }
-  if (cfg.defaults.wind !== undefined) {
-    windInput.value = cfg.defaults.wind;
-  }
+  applySliderRule(angleInput, cfg.sliderRules.angle);
+  applySliderRule(powerInput, cfg.sliderRules.power);
+  applySliderRule(gravityInput, cfg.sliderRules.gravity);
 
-  setControlEnabled(vacuumToggle, cfg.controls.vacuum);
   setControlEnabled(massInput, cfg.controls.mass);
   setControlEnabled(dragInput, cfg.controls.drag);
   setControlEnabled(windInput, cfg.controls.wind);
 
-  if (!cfg.controls.mass) {
-    massInput.value = 0.62;
-  }
-  if (!cfg.controls.drag) {
-    dragInput.value = 0.01;
-  }
-  if (!cfg.controls.wind) {
-    windInput.value = 0;
-  }
-  if (!cfg.controls.vacuum) {
-    vacuumToggle.checked = true;
-  }
+  massInput.value = cfg.defaults.mass ?? 0.62;
+  dragInput.value = cfg.defaults.drag ?? 0.01;
+  windInput.value = cfg.defaults.wind ?? 0;
 
   lockInfo.textContent = cfg.text;
   updateLabels();
@@ -212,7 +223,7 @@ function getPhysicsFromControls() {
   const mass = Number(massInput.value);
   const drag = Number(dragInput.value);
   const wind = Number(windInput.value);
-  const vacuum = vacuumToggle.checked;
+  const vacuum = true;
 
   const speed = power * LAUNCH_SPEED_SCALE;
   const vx0 = Math.cos(angleRad) * speed;
@@ -223,21 +234,9 @@ function getPhysicsFromControls() {
 }
 
 function computeAccelerations(vx, vy, physics) {
-  if (physics.vacuum) {
-    return {
-      ax: physics.wind * 8,
-      ay: physics.gravity * GRAVITY_PIXEL_SCALE
-    };
-  }
-
-  const speed = Math.hypot(vx, vy);
-  const dragFactor = physics.drag / Math.max(physics.mass, 0.05);
-  const dragAx = -dragFactor * vx * speed;
-  const dragAy = -dragFactor * vy * speed;
-
   return {
-    ax: physics.wind * 8 + dragAx,
-    ay: physics.gravity * GRAVITY_PIXEL_SCALE + dragAy
+    ax: physics.wind * 8,
+    ay: physics.gravity * GRAVITY_PIXEL_SCALE
   };
 }
 
@@ -280,19 +279,14 @@ function updateReadout() {
   yEqReadout.textContent =
     `${y0.toFixed(1)} + (${physics.vy0.toFixed(1)})(${t.toFixed(2)}) + 0.5(${(physics.gravity * GRAVITY_PIXEL_SCALE).toFixed(1)})(${(t * t).toFixed(2)}) = ${yIdeal.toFixed(1)}`;
 
-  if (physics.vacuum) {
-    coordNote.textContent =
-      "Vacuum mode: drag = 0, so mass does not change the trajectory when initial velocity is the same. Upward launch uses negative vy on canvas.";
-  } else {
-    coordNote.textContent =
-      "Drag mode: drag acceleration scales with 1/mass, so heavier balls decelerate less for the same drag setting.";
-  }
+  coordNote.textContent =
+    "Vacuum mode only: drag = 0, so mass does not change the trajectory when initial velocity is the same. Upward launch uses negative vy on canvas.";
 }
 
 function getMissFeedback(finalX) {
   if (ball.scored) return "Swish. Great projectile setup.";
   if (game.maxHeight > rim.y + 24) return "Arc stayed too low. Increase angle or launch speed.";
-  if (finalX > rim.right + 30) return "Overshot. Reduce power or raise drag.";
+  if (finalX > rim.right + 30) return "Overshot. Reduce power or adjust angle.";
   return "Close. Adjust angle and compare vx/vy before shooting again.";
 }
 
@@ -309,6 +303,7 @@ function shoot() {
   ball.vx = physics.vx0;
   ball.vy = physics.vy0;
   ball.t = 0;
+  ball.path = [{ x: ball.x, y: ball.y }];
 
   ball.flying = true;
   ball.scored = false;
@@ -324,6 +319,8 @@ function shoot() {
     if (!ball.flying || !activeShotPhysics) return;
     const dt = 1 / 60;
     physicsStep(ball, activeShotPhysics, dt);
+    ball.path.push({ x: ball.x, y: ball.y });
+    if (ball.path.length > 420) ball.path.shift();
     game.maxHeight = Math.min(game.maxHeight, ball.y);
     updateReadout();
 
@@ -460,6 +457,19 @@ function drawBall() {
   ctx.restore();
 }
 
+function drawShotPath() {
+  if (ball.path.length < 2) return;
+  ctx.strokeStyle = "rgba(122, 233, 193, 0.95)";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(ball.path[0].x, ball.path[0].y);
+  for (let i = 1; i < ball.path.length; i += 1) {
+    ctx.lineTo(ball.path[i].x, ball.path[i].y);
+  }
+  ctx.stroke();
+}
+
 function drawArrow(x1, y1, x2, y2, color, label) {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -538,16 +548,17 @@ function drawTrajectoryPreview() {
     t: 0
   };
 
-  ctx.fillStyle = "rgba(122, 233, 193, 0.75)";
+  ctx.strokeStyle = "rgba(122, 233, 193, 0.75)";
+  ctx.lineWidth = 2.4;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(preview.x, preview.y);
   for (let i = 0; i < 180; i += 1) {
     physicsStep(preview, physics, 1 / 60);
-    if (i % 3 === 0) {
-      ctx.beginPath();
-      ctx.arc(preview.x, preview.y, 2.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.lineTo(preview.x, preview.y);
     if (preview.y > canvas.height || preview.x > canvas.width || preview.x < 0) break;
   }
+  ctx.stroke();
 }
 
 function render() {
@@ -555,6 +566,7 @@ function render() {
   drawTrajectoryPreview();
   drawAngleGuide();
   drawLauncher();
+  drawShotPath();
   drawBall();
   drawPhysicsVectors();
   updateReadout();
@@ -610,7 +622,7 @@ backBtn.addEventListener("click", () => {
   showScreen("level");
 });
 
-[angleInput, powerInput, gravityInput, massInput, dragInput, windInput, vacuumToggle].forEach((input) => {
+[angleInput, powerInput, gravityInput, massInput, dragInput, windInput].forEach((input) => {
   input.addEventListener("input", () => {
     updateLabels();
     updateReadout();

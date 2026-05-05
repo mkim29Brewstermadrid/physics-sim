@@ -25,19 +25,19 @@
     <section id="levelScreen" class="screen hidden">
       <div class="card level-card">
         <h2>Welcome, <span id="welcomeName"></span></h2>
-        <p class="sub">Choose a learning path from ideal projectile motion to full drag + wind dynamics.</p>
+        <p class="sub">Choose a vacuum-mode challenge and master ideal projectile motion.</p>
         <div class="level-grid">
           <button class="level-option selected" data-level="easy">
             <strong>Easy</strong>
-            <span>Vacuum mode only: learn vx, vy, and gravity with clean kinematics.</span>
+            <span>No wind. Learn pure vx, vy, and gravity kinematics.</span>
           </button>
           <button class="level-option" data-level="medium">
             <strong>Medium</strong>
-            <span>Add drag and mass: compare vacuum vs air resistance behavior.</span>
+            <span>Fixed crosswind + narrower angle/power ranges.</span>
           </button>
           <button class="level-option" data-level="hard">
             <strong>Hard</strong>
-            <span>Full model: drag + wind with stricter shot precision.</span>
+            <span>Strong crosswind + tight angle/power windows with bigger slider jumps.</span>
           </button>
         </div>
         <div class="level-actions">
@@ -116,13 +116,8 @@
           </div>
 
           <div class="preview-row">
-            <input id="vacuumToggle" type="checkbox" checked />
-            <label for="vacuumToggle">Vacuum mode (no drag, mass-independent path)</label>
-          </div>
-
-          <div class="preview-row">
             <input id="previewToggle" type="checkbox" checked />
-            <label for="previewToggle">Show trajectory preview</label>
+            <label for="previewToggle">Show trajectory line guide</label>
           </div>
 
           <div class="decomposition-row">
