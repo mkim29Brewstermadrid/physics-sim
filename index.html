@@ -5,109 +5,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Physics Hoops Lab</title>
   <link rel="stylesheet" href="styles.css" />
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <main class="app">
-    <section id="authScreen" class="screen screen-auth">
-      <div class="card auth-card">
-        <p class="eyebrow">Physics Hoops Lab</p>
-        <h1>Sign in to start the simulation</h1>
-        <p class="subtext">Choose a sign-in method. Google sign-in is simulated for this demo.</p>
-        <p class="step-note">Each step opens in a new tab: Sign-in → Level Select → Simulator.</p>
-        <div class="auth-actions">
-          <button id="guestSignInBtn" class="btn-primary">Continue as Guest</button>
-          <button id="googleSignInBtn" class="btn-google">
-            <span class="google-dot">G</span>
-            Continue with Google
-          </button>
-        </div>
-        <p id="authHintText" class="auth-hint"></p>
+    <section id="nameScreen" class="screen">
+      <div class="card name-card">
+        <p class="badge">Physics Hoops Lab</p>
+        <h1>Enter Your Player Name</h1>
+        <p class="sub">
+          Use physics to make the perfect shot.
+        </p>
+        <label for="playerNameInput">Player Name</label>
+        <input id="playerNameInput" maxlength="18" placeholder="e.g. Arc Master" />
+        <button id="enterLabBtn" class="btn btn-primary">Continue</button>
+        <p id="nameMessage" class="message"></p>
       </div>
     </section>
 
-    <section id="homeScreen" class="screen hidden">
-      <div class="card home-card">
-        <div class="home-head">
-          <h1>Welcome, <span id="userNameText">Guest</span></h1>
-          <p id="providerText" class="subtext"></p>
-        </div>
-
-        <p class="subtext">Pick difficulty and explore how angle, power, gravity, wind, and drag change a shot.</p>
-        <p class="step-note">Starting the simulation opens a new tab with your selected mode.</p>
-
-        <div class="mode-grid">
-          <button class="mode-card selected" data-mode="easy">
+    <section id="levelScreen" class="screen hidden">
+      <div class="card level-card">
+        <h2>Welcome, <span id="welcomeName"></span></h2>
+        <p class="sub">Choose difficulty and test your physics instincts.</p>
+        <div class="level-grid">
+          <button class="level-option selected" data-level="easy">
             <strong>Easy</strong>
-            <span>Restriction: minimum power only.</span>
+            <span>All factors are controllable.</span>
           </button>
-          <button class="mode-card" data-mode="medium">
+          <button class="level-option" data-level="medium">
             <strong>Medium</strong>
-            <span>Restriction: random angle window.</span>
+            <span>Locked crosswind challenges your aim.</span>
           </button>
-          <button class="mode-card" data-mode="hard">
+          <button class="level-option" data-level="hard">
             <strong>Hard</strong>
-            <span>Restriction: random power window.</span>
+            <span>Locked high drag kills speed fast.</span>
           </button>
         </div>
-
-        <button id="startSimBtn" class="btn-primary start-btn">Start Simulation</button>
+        <div class="level-actions">
+          <button id="startGameBtn" class="btn btn-primary">Start Game</button>
+          <button id="changeNameBtn" class="btn btn-secondary">Change Name</button>
+        </div>
       </div>
     </section>
 
-    <section id="simScreen" class="screen hidden">
-      <header class="topbar card">
+    <section id="gameScreen" class="screen hidden">
+      <header class="card topbar">
         <div>
           <h2>Physics Hoops Lab</h2>
-          <p><strong id="hudUserName">Guest</strong> · <span id="hudModeText">Easy</span></p>
+          <p><strong id="hudName"></strong> · <span id="hudLevel"></span></p>
         </div>
-        <button id="backHomeBtn" class="btn-secondary">Back to Home</button>
+        <p id="lockInfo" class="lock-info"></p>
       </header>
 
-      <section class="sim-layout">
-        <canvas id="simCanvas" width="960" height="540" aria-label="Basketball physics simulator"></canvas>
+      <div class="layout">
+        <section class="card court-card">
+          <canvas id="courtCanvas" width="980" height="560" aria-label="Basketball physics simulator"></canvas>
+        </section>
 
-        <aside class="panel card">
+        <aside class="card panel">
           <div class="stats">
-            <div><span>Score</span><strong id="scoreValue">0</strong></div>
-            <div><span>Shots</span><strong id="shotsValue">0</strong></div>
-            <div><span>Streak</span><strong id="streakValue">0</strong></div>
-            <div><span>Best</span><strong id="bestStreakValue">0</strong></div>
+            <div><span>Score</span><strong id="scoreStat">0</strong></div>
+            <div><span>Shots</span><strong id="shotsStat">0</strong></div>
+            <div><span>Streak</span><strong id="streakStat">0</strong></div>
+            <div><span>Best</span><strong id="bestStat">0</strong></div>
           </div>
 
-          <label for="angleControl">Launch angle <span id="angleValue"></span></label>
-          <input id="angleControl" type="range" min="20" max="85" value="50" />
+          <div class="control-row">
+            <label for="angleInput">Angle <span id="angleValue">52°</span></label>
+            <input id="angleInput" type="range" min="20" max="85" value="52" />
+          </div>
 
-          <label for="powerControl">Launch power <span id="powerValue"></span></label>
-          <input id="powerControl" type="range" min="30" max="85" value="58" />
+          <div class="control-row">
+            <label for="powerInput">Power <span id="powerValue">58</span></label>
+            <input id="powerInput" type="range" min="30" max="92" value="58" />
+          </div>
 
-          <label for="gravityControl">Gravity <span id="gravityValue"></span></label>
-          <input id="gravityControl" type="range" min="6" max="14" step="0.2" value="9.8" />
+          <div class="control-row">
+            <label for="gravityInput">Gravity <span id="gravityValue">9.8</span></label>
+            <input id="gravityInput" type="range" min="6" max="14" step="0.1" value="9.8" />
+          </div>
 
-          <label for="windControl">Wind <span id="windValue"></span></label>
-          <input id="windControl" type="range" min="-15" max="15" step="0.5" value="0" />
+          <div class="control-row">
+            <label for="windInput">Wind <span id="windValue">0.0</span></label>
+            <input id="windInput" type="range" min="-18" max="18" step="0.1" value="0" />
+          </div>
 
-          <div class="toggle">
+          <div class="control-row">
+            <label for="dragInput">Drag <span id="dragValue">0.010</span></label>
+            <input id="dragInput" type="range" min="0.003" max="0.028" step="0.001" value="0.010" />
+          </div>
+
+          <div class="preview-row">
             <input id="previewToggle" type="checkbox" checked />
             <label for="previewToggle">Show trajectory preview</label>
           </div>
 
-          <p id="restrictionText" class="restriction-text"></p>
-          <p id="shotGuideText" class="shot-guide-text"></p>
-          <p id="externalText" class="external-text"></p>
-          <p id="statusText" class="status-text">Tune controls and shoot.</p>
-
           <div class="actions">
-            <button id="shootBtn" class="btn-primary">Shoot</button>
-            <button id="resetBtn" class="btn-secondary">Reset Ball</button>
+            <button id="shootBtn" class="btn btn-primary">Shoot</button>
+            <button id="resetBtn" class="btn btn-secondary">Reset Shot</button>
+            <button id="backBtn" class="btn btn-secondary">Back to Levels</button>
           </div>
 
-          <div class="learn-box">
-            <p><strong>Physics tips</strong></p>
-            <p id="lessonText"></p>
-          </div>
+          <p id="feedbackMessage" class="message">Tune the sliders and shoot.</p>
         </aside>
-      </section>
+      </div>
     </section>
   </main>
 
