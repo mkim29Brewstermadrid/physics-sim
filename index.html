@@ -8,17 +8,39 @@
 </head>
 <body>
   <main class="app">
-    <section id="nameScreen" class="screen">
-      <div class="card name-card">
-        <p class="badge">Physics Hoops Lab</p>
-        <h1>Enter Your Player Name</h1>
-        <p class="sub">
-          Use physics to make the perfect shot.
-        </p>
-        <label for="playerNameInput">Player Name</label>
-        <input id="playerNameInput" maxlength="18" placeholder="e.g. Arc Master" />
-        <button id="enterLabBtn" class="btn btn-primary">Continue</button>
-        <p id="nameMessage" class="message"></p>
+    <section id="nameScreen" class="screen auth-screen">
+      <div class="auth-backdrop"></div>
+      <div class="card auth-card">
+        <p class="badge">Physics Simulation Platform</p>
+        <h1 class="hero-title">Physics Hoops Lab</h1>
+        <p class="hero-subtitle">Explore projectile motion, vectors, gravity, and real-world basketball physics.</p>
+        <div class="hero-actions">
+          <button id="signInBtn" class="btn btn-primary">Sign In</button>
+          <button id="createAccountBtn" class="btn btn-secondary">Create Account</button>
+          <button id="guestBtn" class="btn btn-ghost">Continue as Guest</button>
+        </div>
+        <p class="auth-footnote">Local demo mode: accounts and high scores are stored on this browser only.</p>
+        <p id="authMessage" class="message"></p>
+      </div>
+
+      <div id="authModal" class="auth-modal hidden" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+        <div class="card auth-modal-card">
+          <h3 id="authModalTitle">Sign In</h3>
+          <p id="authModalSubtitle" class="sub"></p>
+          <div class="control-row">
+            <label for="authUsernameInput">Username</label>
+            <input id="authUsernameInput" maxlength="20" autocomplete="username" placeholder="e.g. ArcMaster29" />
+          </div>
+          <div class="control-row">
+            <label for="authPasswordInput">Password</label>
+            <input id="authPasswordInput" type="password" maxlength="40" autocomplete="current-password" placeholder="Enter password" />
+          </div>
+          <div class="auth-modal-actions">
+            <button id="authSubmitBtn" class="btn btn-primary">Continue</button>
+            <button id="authCancelBtn" class="btn btn-secondary">Cancel</button>
+          </div>
+          <p id="authModalMessage" class="message"></p>
+        </div>
       </div>
     </section>
 
@@ -42,7 +64,7 @@
         </div>
         <div class="level-actions">
           <button id="startGameBtn" class="btn btn-primary">Start Simulation</button>
-          <button id="changeNameBtn" class="btn btn-secondary">Change Name</button>
+          <button id="changeNameBtn" class="btn btn-secondary">Switch User</button>
         </div>
       </div>
     </section>
@@ -74,6 +96,12 @@
               <p>x = x₀ + vₓt → <span id="xEqReadout"></span></p>
               <p>y = y₀ + vᵧt + ½at² → <span id="yEqReadout"></span></p>
             </div>
+          </section>
+
+          <section id="graphPanel" class="readout graph-panel hidden">
+            <h3>Shot Graph</h3>
+            <p id="graphMeta" class="coord-note">Trajectory graph of x-y motion during shot.</p>
+            <canvas id="graphCanvas" width="640" height="280" aria-label="Shot graph"></canvas>
           </section>
         </section>
 
@@ -115,9 +143,24 @@
             <input id="windInput" type="range" min="-18" max="18" step="0.1" value="0" />
           </div>
 
+          <div class="control-row">
+            <label for="distanceInput">Launch Distance <span id="distanceValue">Mid-range</span></label>
+            <input id="distanceInput" type="range" min="100" max="260" step="1" value="130" />
+          </div>
+
+          <div id="spotRow" class="spot-row hidden">
+            <p id="spotInfo" class="sub">Spot challenge</p>
+            <button id="nextSpotBtn" class="btn btn-secondary">Switch Spot</button>
+          </div>
+
           <div class="preview-row">
             <input id="previewToggle" type="checkbox" checked />
             <label for="previewToggle">Show trajectory line guide</label>
+          </div>
+
+          <div class="preview-row">
+            <input id="graphToggle" type="checkbox" checked />
+            <label for="graphToggle">Show shot graph</label>
           </div>
 
           <div class="decomposition-row">
@@ -133,6 +176,14 @@
 
           <p id="feedbackMessage" class="message">Tune the sliders and shoot.</p>
         </aside>
+      </div>
+
+      <div id="shotNotice" class="shot-notice hidden">
+        <div class="card shot-notice-card">
+          <h3 id="shotNoticeTitle">Shot Result</h3>
+          <p id="shotNoticeMessage" class="sub">Result text</p>
+          <button id="tryAgainBtn" class="btn btn-primary">Try Again</button>
+        </div>
       </div>
     </section>
   </main>

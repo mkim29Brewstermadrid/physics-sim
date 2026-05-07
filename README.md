@@ -14,6 +14,11 @@ Physics Hoops Lab is a basketball projectile-motion simulator designed for learn
   - `y = y0 + vy t + 1/2 a t²`
 
 ## Levels
-- **Easy**: Vacuum mode locked on for clean projectile basics.
-- **Medium**: Drag and mass enabled with vacuum toggle for side-by-side understanding.
-- **Hard**: Full model with drag, mass, gravity, and wind.
+- **Easy**: Vacuum mode only, no wind, full slider precision.
+- **Medium**: Vacuum mode with fixed crosswind and reduced angle/power tuning range.
+- **Hard**: Vacuum mode with stronger crosswind and tight coarse tuning windows.
+
+## Landing and accounts
+- Cinematic opening screen with Sign In, Create Account, and Continue as Guest.
+- Local demo accounts are stored in `localStorage` (no Google authentication).
+- Each account keeps a local personal high score that is loaded when the user signs back in.

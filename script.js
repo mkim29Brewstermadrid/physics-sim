@@ -2,9 +2,19 @@ const nameScreen = document.getElementById("nameScreen");
 const levelScreen = document.getElementById("levelScreen");
 const gameScreen = document.getElementById("gameScreen");
 
-const playerNameInput = document.getElementById("playerNameInput");
-const enterLabBtn = document.getElementById("enterLabBtn");
-const nameMessage = document.getElementById("nameMessage");
+const signInBtn = document.getElementById("signInBtn");
+const createAccountBtn = document.getElementById("createAccountBtn");
+const guestBtn = document.getElementById("guestBtn");
+const authMessage = document.getElementById("authMessage");
+
+const authModal = document.getElementById("authModal");
+const authModalTitle = document.getElementById("authModalTitle");
+const authModalSubtitle = document.getElementById("authModalSubtitle");
+const authUsernameInput = document.getElementById("authUsernameInput");
+const authPasswordInput = document.getElementById("authPasswordInput");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const authCancelBtn = document.getElementById("authCancelBtn");
+const authModalMessage = document.getElementById("authModalMessage");
 
 const welcomeName = document.getElementById("welcomeName");
 const levelOptions = Array.from(document.querySelectorAll(".level-option"));
@@ -27,7 +37,13 @@ const gravityInput = document.getElementById("gravityInput");
 const massInput = document.getElementById("massInput");
 const dragInput = document.getElementById("dragInput");
 const windInput = document.getElementById("windInput");
+const distanceInput = document.getElementById("distanceInput");
 const previewToggle = document.getElementById("previewToggle");
+const graphToggle = document.getElementById("graphToggle");
+const distanceValue = document.getElementById("distanceValue");
+const spotRow = document.getElementById("spotRow");
+const spotInfo = document.getElementById("spotInfo");
+const nextSpotBtn = document.getElementById("nextSpotBtn");
 
 const angleValue = document.getElementById("angleValue");
 const powerValue = document.getElementById("powerValue");
@@ -51,17 +67,35 @@ const coordNote = document.getElementById("coordNote");
 const shootBtn = document.getElementById("shootBtn");
 const resetBtn = document.getElementById("resetBtn");
 const backBtn = document.getElementById("backBtn");
+const tryAgainBtn = document.getElementById("tryAgainBtn");
+const shotNotice = document.getElementById("shotNotice");
+const shotNoticeTitle = document.getElementById("shotNoticeTitle");
+const shotNoticeMessage = document.getElementById("shotNoticeMessage");
+const graphPanel = document.getElementById("graphPanel");
+const graphMeta = document.getElementById("graphMeta");
+const graphCanvas = document.getElementById("graphCanvas");
+const graphCtx = graphCanvas.getContext("2d");
 
 const canvas = document.getElementById("courtCanvas");
 const ctx = canvas.getContext("2d");
 
+const ACCOUNTS_KEY = "physicsHoopsLab.accounts.v1";
+const ACCOUNTS_LEGACY_KEY = "physicsHoopsLab.accounts";
+const LAST_USER_KEY = "physicsHoopsLab.lastUser.v1";
+const LAST_USER_LEGACY_KEY = "physicsHoopsLab.lastUser";
+
 const floorY = 500;
 const launcher = { x: 130, y: floorY - 110 };
-const hoop = { x: 846, y: 222 };
 const rim = { left: 818, right: 874, y: 230 };
 const backboard = { x: 890, y: 150, w: 10, h: 128 };
+const RIM_NODE_RADIUS = 7;
 const LAUNCH_SPEED_SCALE = 6.6;
 const GRAVITY_PIXEL_SCALE = 34;
+const DISTANCE_LINES = [
+  { x: 280, label: "Paint Line" },
+  { x: 180, label: "Mid-range Line" },
+  { x: 80, label: "Three-point Line" }
+];
 
 const ball = {
   x: launcher.x + 38,
@@ -82,23 +116,51 @@ const ball = {
 };
 
 const game = {
-  playerName: "Guest Player",
+  playerName: "Guest",
+  userKey: null,
+  isGuest: true,
+  guestBest: 0,
   level: "easy",
   score: 0,
   shots: 0,
   streak: 0,
   best: 0,
-  maxHeight: ball.y
+  maxHeight: ball.y,
+  currentSpotIndex: 0,
+  spotMakes: [],
+  shotResolved: false
 };
 
 let activeShotPhysics = null;
+let authMode = "signin";
+
+function getStorageItem(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.warn("Storage read failed:", error);
+    return null;
+  }
+}
+
+function setStorageItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.warn("Storage write failed:", error);
+    return false;
+  }
+}
 
 const levels = {
   easy: {
     label: "Easy · Ideal Projectile",
-    text: "Vacuum mode locked. No wind. Full slider precision.",
+    text: "Make 1 shot from the mid-range line.",
     defaults: { mass: 0.62, drag: 0.01, wind: 0 },
     controls: { mass: false, drag: false, wind: false },
+    distanceMode: { type: "spots", spots: [180], labels: ["Mid-range Line"], makesPerSpot: 1 },
+    showPreview: true,
     sliderRules: {
       angle: { min: 20, max: 85, step: 1, value: 52 },
       power: { min: 30, max: 92, step: 1, value: 58 },
@@ -108,34 +170,194 @@ const levels = {
   },
   medium: {
     label: "Medium · Vacuum + Crosswind",
-    text: "Vacuum mode + fixed +3.0 crosswind. Narrower angle/power ranges.",
+    text: "Make 1 shot from each line. Fixed +3.0 crosswind.",
     defaults: { mass: 0.62, drag: 0.01, wind: 3.0 },
     controls: { mass: false, drag: false, wind: false },
+    distanceMode: {
+      type: "spots",
+      spots: [280, 180, 80],
+      labels: ["Paint Line", "Mid-range Line", "Three-point Line"],
+      makesPerSpot: 1
+    },
+    showPreview: true,
     sliderRules: {
-      angle: { min: 30, max: 74, step: 2, value: 52 },
-      power: { min: 42, max: 86, step: 3, value: 62 },
-      gravity: { min: 8.5, max: 11.5, step: 0.2, value: 9.8 }
+      angle: { min: 40, max: 64, step: 2, value: 52 },
+      power: { min: 44, max: 80, step: 4, value: 64 },
+      gravity: { min: 9.0, max: 10.8, step: 0.3, value: 9.9 }
     },
     forgiveness: 10
   },
   hard: {
     label: "Hard · Vacuum + Strong Crosswind",
-    text: "Vacuum mode + fixed +6.0 crosswind. Tight ranges and coarse steps.",
+    text: "Make 2 shots from each line. No trajectory guide in Hard mode.",
     defaults: { mass: 0.62, drag: 0.01, wind: 6.0 },
     controls: { mass: false, drag: false, wind: false },
+    distanceMode: {
+      type: "spots",
+      spots: [280, 180, 80],
+      labels: ["Paint Line", "Mid-range Line", "Three-point Line"],
+      makesPerSpot: 2
+    },
+    showPreview: false,
     sliderRules: {
-      angle: { min: 38, max: 66, step: 4, value: 50 },
-      power: { min: 54, max: 78, step: 3, value: 63 },
-      gravity: { min: 9.2, max: 10.4, step: 0.4, value: 9.8 }
+      angle: { min: 38, max: 72, step: 1, value: 54 },
+      power: { min: 46, max: 84, step: 2, value: 68 },
+      gravity: { min: 8.6, max: 11.6, step: 0.2, value: 9.8 }
     },
     forgiveness: 6
   }
 };
 
+function readAccounts() {
+  const rawPrimary = getStorageItem(ACCOUNTS_KEY);
+  const rawLegacy = getStorageItem(ACCOUNTS_LEGACY_KEY);
+  const raw = rawPrimary || rawLegacy;
+  if (!raw) return {};
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+
+    if (Array.isArray(parsed.users)) {
+      const migrated = {};
+      parsed.users.forEach((u) => {
+        if (!u || typeof u.username !== "string" || typeof u.password !== "string") return;
+        migrated[normalizeUserKey(u.username)] = {
+          username: u.username.trim(),
+          password: u.password,
+          highScore: Number.isFinite(Number(u.highScore)) ? Number(u.highScore) : 0
+        };
+      });
+      writeAccounts(migrated);
+      return migrated;
+    }
+
+    const normalized = {};
+    Object.entries(parsed).forEach(([key, value]) => {
+      if (!value || typeof value !== "object") return;
+      if (typeof value.username !== "string" || typeof value.password !== "string") return;
+      normalized[normalizeUserKey(key)] = {
+        username: value.username.trim(),
+        password: value.password,
+        highScore: Number.isFinite(Number(value.highScore)) ? Number(value.highScore) : 0
+      };
+    });
+    return normalized;
+  } catch (error) {
+    console.warn("Failed to parse account store:", error);
+    return {};
+  }
+}
+
+function writeAccounts(accounts) {
+  const payload = JSON.stringify(accounts);
+  const okPrimary = setStorageItem(ACCOUNTS_KEY, payload);
+  const okLegacy = setStorageItem(ACCOUNTS_LEGACY_KEY, payload);
+  return okPrimary || okLegacy;
+}
+
+function normalizeUserKey(username) {
+  return username.trim().toLowerCase();
+}
+
+function getCurrentHighScore() {
+  if (game.isGuest || !game.userKey) return game.guestBest;
+  const accounts = readAccounts();
+  const account = accounts[game.userKey];
+  return account?.highScore ?? 0;
+}
+
+function saveCurrentHighScore(score) {
+  if (game.isGuest || !game.userKey) {
+    game.guestBest = Math.max(game.guestBest, score);
+    return;
+  }
+  const accounts = readAccounts();
+  const account = accounts[game.userKey];
+  if (!account) return;
+  account.highScore = Math.max(account.highScore ?? 0, score);
+  accounts[game.userKey] = account;
+  writeAccounts(accounts);
+}
+
 function showScreen(screen) {
   nameScreen.classList.toggle("hidden", screen !== "name");
   levelScreen.classList.toggle("hidden", screen !== "level");
   gameScreen.classList.toggle("hidden", screen !== "game");
+}
+
+function hideShotNotice() {
+  shotNotice.classList.add("hidden");
+}
+
+function showShotNotice(title, message) {
+  shotNoticeTitle.textContent = title;
+  shotNoticeMessage.textContent = message;
+  shotNotice.classList.remove("hidden");
+}
+
+function updateGraphVisibility() {
+  graphPanel.classList.toggle("hidden", !graphToggle.checked);
+}
+
+function drawShotGraph() {
+  if (!graphToggle.checked || ball.path.length < 2) {
+    graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+    graphMeta.textContent = "Toggle graph on and shoot to see x-y trajectory.";
+    return;
+  }
+
+  const pts = ball.path;
+  const xMin = Math.min(...pts.map((d) => d.x)) - 18;
+  const xMax = Math.max(...pts.map((d) => d.x)) + 18;
+  const yMin = Math.min(...pts.map((d) => d.y)) - 18;
+  const yMax = Math.max(...pts.map((d) => d.y)) + 18;
+
+  graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+  graphCtx.fillStyle = "rgba(8, 24, 40, 0.15)";
+  graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+  const pad = 26;
+  const w = graphCanvas.width - pad * 2;
+  const h = graphCanvas.height - pad * 2;
+  const tx = (x) => pad + ((x - xMin) / Math.max(1, xMax - xMin)) * w;
+  const ty = (y) => pad + ((yMax - y) / Math.max(1, yMax - yMin)) * h;
+
+  graphCtx.strokeStyle = "rgba(180, 220, 255, 0.25)";
+  graphCtx.lineWidth = 1;
+  for (let i = 0; i <= 10; i += 1) {
+    const gx = pad + (w * i) / 10;
+    graphCtx.beginPath();
+    graphCtx.moveTo(gx, pad);
+    graphCtx.lineTo(gx, pad + h);
+    graphCtx.stroke();
+  }
+  for (let i = 0; i <= 6; i += 1) {
+    const gy = pad + (h * i) / 6;
+    graphCtx.beginPath();
+    graphCtx.moveTo(pad, gy);
+    graphCtx.lineTo(pad + w, gy);
+    graphCtx.stroke();
+  }
+
+  graphCtx.strokeStyle = "rgba(125, 234, 203, 0.96)";
+  graphCtx.lineWidth = 2.2;
+  graphCtx.beginPath();
+  graphCtx.moveTo(tx(pts[0].x), ty(pts[0].y));
+  for (let i = 1; i < pts.length; i += 1) graphCtx.lineTo(tx(pts[i].x), ty(pts[i].y));
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = "rgba(234, 248, 255, 0.92)";
+  graphCtx.font = "600 12px Inter, sans-serif";
+  graphCtx.fillText("x distance", graphCanvas.width - 86, graphCanvas.height - 8);
+  graphCtx.save();
+  graphCtx.translate(10, 68);
+  graphCtx.rotate(-Math.PI / 2);
+  graphCtx.fillText("y height", 0, 0);
+  graphCtx.restore();
+
+  const p = activeShotPhysics || getPhysicsFromControls();
+  graphMeta.textContent = `vx=${p.vx0.toFixed(1)}, vy=${p.vy0.toFixed(1)}, g=${(p.gravity * GRAVITY_PIXEL_SCALE).toFixed(1)} | points=${pts.length}`;
 }
 
 function resetBall() {
@@ -155,6 +377,7 @@ function resetBall() {
   ball.scored = false;
   activeShotPhysics = null;
   game.maxHeight = ball.y;
+  game.shotResolved = false;
 }
 
 function updateStats() {
@@ -168,6 +391,56 @@ function setControlEnabled(input, enabled) {
   input.disabled = !enabled;
   const row = input.closest(".control-row, .preview-row");
   if (row) row.classList.toggle("disabled-control", !enabled);
+}
+
+function nearestDistanceLabel(x) {
+  let best = DISTANCE_LINES[0];
+  let bestDelta = Math.abs(x - best.x);
+  for (let i = 1; i < DISTANCE_LINES.length; i += 1) {
+    const delta = Math.abs(x - DISTANCE_LINES[i].x);
+    if (delta < bestDelta) {
+      best = DISTANCE_LINES[i];
+      bestDelta = delta;
+    }
+  }
+  return best.label;
+}
+
+function setLauncherX(x, reset = true) {
+  launcher.x = x;
+  distanceInput.value = String(Math.round(x));
+  distanceValue.textContent = nearestDistanceLabel(x);
+  if (reset && !ball.flying) {
+    resetBall();
+    updateReadout();
+  }
+}
+
+function updateSpotInfo() {
+  const cfg = levels[game.level];
+  if (cfg.distanceMode.type !== "spots") return;
+  const total = cfg.distanceMode.spots.length;
+  const label = cfg.distanceMode.labels[game.currentSpotIndex];
+  const required = cfg.distanceMode.makesPerSpot;
+  const current = game.spotMakes[game.currentSpotIndex] ?? 0;
+  const doneCount = game.spotMakes.reduce((sum, v) => sum + Math.min(v, required), 0);
+  const targetCount = total * required;
+  spotInfo.textContent = `Spot ${game.currentSpotIndex + 1}/${total}: ${label} · ${current}/${required} here · Total ${doneCount}/${targetCount}`;
+}
+
+function applyDistanceMode(cfg) {
+  const mode = cfg.distanceMode;
+  game.spotMakes = new Array(mode.spots.length).fill(0);
+  game.currentSpotIndex = 0;
+
+  distanceInput.min = String(Math.min(...mode.spots));
+  distanceInput.max = String(Math.max(...mode.spots));
+  distanceInput.step = "1";
+  distanceInput.disabled = true;
+  spotRow.classList.remove("hidden");
+  nextSpotBtn.classList.toggle("hidden", mode.spots.length <= 1);
+  setLauncherX(mode.spots[game.currentSpotIndex], false);
+  updateSpotInfo();
 }
 
 function applySliderRule(input, rule) {
@@ -188,11 +461,11 @@ function updateLabels() {
   massValue.textContent = Number(massInput.value).toFixed(2);
   dragValue.textContent = Number(dragInput.value).toFixed(3);
   windValue.textContent = Number(windInput.value).toFixed(1);
+  distanceValue.textContent = nearestDistanceLabel(launcher.x);
 }
 
 function applyLevelRules() {
   const cfg = levels[game.level];
-
   applySliderRule(angleInput, cfg.sliderRules.angle);
   applySliderRule(powerInput, cfg.sliderRules.power);
   applySliderRule(gravityInput, cfg.sliderRules.gravity);
@@ -205,7 +478,15 @@ function applyLevelRules() {
   dragInput.value = cfg.defaults.drag ?? 0.01;
   windInput.value = cfg.defaults.wind ?? 0;
 
+  applyDistanceMode(cfg);
+
+  const previewRow = previewToggle.closest(".preview-row");
+  previewToggle.checked = cfg.showPreview;
+  previewToggle.disabled = !cfg.showPreview;
+  if (previewRow) previewRow.classList.toggle("hidden", !cfg.showPreview);
+
   lockInfo.textContent = cfg.text;
+  updateGraphVisibility();
   updateLabels();
   updateReadout();
 }
@@ -227,7 +508,6 @@ function getPhysicsFromControls() {
 
   const speed = power * LAUNCH_SPEED_SCALE;
   const vx0 = Math.cos(angleRad) * speed;
-  // In canvas coordinates, negative y goes upward.
   const vy0 = -Math.abs(Math.sin(angleRad) * speed);
 
   return { angleDeg, angleRad, power, gravity, mass, drag, wind, vacuum, speed, vx0, vy0 };
@@ -249,6 +529,76 @@ function physicsStep(state, physics, dt) {
   state.x += state.vx * dt;
   state.y += state.vy * dt;
   state.t += dt;
+}
+
+function resolveBackboardCollision() {
+  const boardTop = backboard.y;
+  const boardBottom = backboard.y + backboard.h;
+  const boardLeft = backboard.x;
+  const boardRight = backboard.x + backboard.w;
+  const verticallyOverlapping = ball.y + ball.r > boardTop && ball.y - ball.r < boardBottom;
+
+  if (!verticallyOverlapping) return false;
+
+  const hitFrontFace =
+    ball.vx > 0 &&
+    ball.x + ball.r >= boardLeft &&
+    ball.x - ball.r < boardLeft;
+  if (hitFrontFace) {
+    ball.x = boardLeft - ball.r - 0.2;
+    ball.vx = -Math.abs(ball.vx) * 0.44;
+    ball.vy *= 0.94;
+    return true;
+  }
+
+  const hitBackFace =
+    ball.vx < 0 &&
+    ball.x - ball.r <= boardRight &&
+    ball.x + ball.r > boardRight;
+  if (hitBackFace) {
+    ball.x = boardRight + ball.r + 0.2;
+    ball.vx = Math.abs(ball.vx) * 0.44;
+    ball.vy *= 0.94;
+    return true;
+  }
+
+  return false;
+}
+
+function resolveRimCollision() {
+  const rimNodes = [
+    { x: rim.left, y: rim.y },
+    { x: rim.right, y: rim.y }
+  ];
+
+  let hit = false;
+  for (const node of rimNodes) {
+    const dx = ball.x - node.x;
+    const dy = ball.y - node.y;
+    const distance = Math.hypot(dx, dy) || 0.0001;
+    const minDistance = ball.r + RIM_NODE_RADIUS;
+    if (distance >= minDistance) continue;
+
+    const nx = dx / distance;
+    const ny = dy / distance;
+    const overlap = minDistance - distance;
+    ball.x += nx * overlap;
+    ball.y += ny * overlap;
+
+    const vn = ball.vx * nx + ball.vy * ny;
+    if (vn < 0) {
+      const tx = -ny;
+      const ty = nx;
+      const vt = ball.vx * tx + ball.vy * ty;
+      const vnAfter = -vn * 0.68;
+      const vtAfter = vt * 0.96;
+      ball.vx = vnAfter * nx + vtAfter * tx;
+      ball.vy = vnAfter * ny + vtAfter * ty;
+    }
+    hit = true;
+  }
+
+  return hit;
 }
 
 function updateReadout() {
@@ -280,7 +630,7 @@ function updateReadout() {
     `${y0.toFixed(1)} + (${physics.vy0.toFixed(1)})(${t.toFixed(2)}) + 0.5(${(physics.gravity * GRAVITY_PIXEL_SCALE).toFixed(1)})(${(t * t).toFixed(2)}) = ${yIdeal.toFixed(1)}`;
 
   coordNote.textContent =
-    "Vacuum mode only: drag = 0, so mass does not change the trajectory when initial velocity is the same. Upward launch uses negative vy on canvas.";
+    "Vacuum mode only: drag = 0, so mass does not change trajectory for equal initial velocity. Upward launch starts with negative vy in canvas coordinates.";
 }
 
 function getMissFeedback(finalX) {
@@ -290,8 +640,28 @@ function getMissFeedback(finalX) {
   return "Close. Adjust angle and compare vx/vy before shooting again.";
 }
 
+function registerSpotMake() {
+  const cfg = levels[game.level];
+  const required = cfg.distanceMode.makesPerSpot;
+  const current = game.spotMakes[game.currentSpotIndex] ?? 0;
+  const next = Math.min(required, current + 1);
+  game.spotMakes[game.currentSpotIndex] = next;
+
+  const completedBefore = current >= required;
+  const completedNow = next >= required;
+  const totalNeeded = cfg.distanceMode.spots.length * required;
+  const totalMade = game.spotMakes.reduce((sum, v) => sum + Math.min(v, required), 0);
+  updateSpotInfo();
+  return {
+    newlyCompleted: !completedBefore && completedNow,
+    allDone: totalMade >= totalNeeded,
+    current: next,
+    required
+  };
+}
+
 function shoot() {
-  if (ball.flying) return;
+  if (ball.flying || game.shotResolved) return;
 
   const physics = getPhysicsFromControls();
   activeShotPhysics = { ...physics };
@@ -304,9 +674,9 @@ function shoot() {
   ball.vy = physics.vy0;
   ball.t = 0;
   ball.path = [{ x: ball.x, y: ball.y }];
-
   ball.flying = true;
   ball.scored = false;
+  game.shotResolved = false;
 
   game.shots += 1;
   game.maxHeight = ball.y;
@@ -314,32 +684,58 @@ function shoot() {
   feedbackMessage.textContent = "Shot launched. Watch vx, vy, and g vectors in flight.";
 
   let previousY = ball.y;
+  let previousX = ball.x;
 
   function animate() {
     if (!ball.flying || !activeShotPhysics) return;
     const dt = 1 / 60;
     physicsStep(ball, activeShotPhysics, dt);
+    const hitBackboard = resolveBackboardCollision();
+    const hitRim = resolveRimCollision();
     ball.path.push({ x: ball.x, y: ball.y });
     if (ball.path.length > 420) ball.path.shift();
     game.maxHeight = Math.min(game.maxHeight, ball.y);
     updateReadout();
 
-    const crossedRim =
-      previousY < rim.y &&
-      ball.y >= rim.y &&
-      ball.x > rim.left - levels[game.level].forgiveness &&
-      ball.x < rim.right + levels[game.level].forgiveness;
+    if ((hitBackboard || hitRim) && !ball.scored) {
+      feedbackMessage.textContent = "Rim/backboard contact: tune angle and power for a clean make.";
+    }
+
+    const crossedPlane = previousY < rim.y && ball.y >= rim.y && ball.vy > 0;
+    let crossedRim = false;
+    if (crossedPlane) {
+      const dy = ball.y - previousY;
+      const alpha = Math.abs(dy) < 0.0001 ? 1 : (rim.y - previousY) / dy;
+      const xAtPlane = previousX + (ball.x - previousX) * Math.max(0, Math.min(1, alpha));
+      const hoopClearance = ball.r + 1;
+      crossedRim = xAtPlane > rim.left + hoopClearance && xAtPlane < rim.right - hoopClearance;
+    }
 
     if (crossedRim && !ball.scored) {
       ball.scored = true;
       game.score += 2;
       game.streak += 1;
-      game.best = Math.max(game.best, game.score);
-      feedbackMessage.textContent = "Bucket! Your projectile path crossed the rim plane.";
+      const spotProgress = registerSpotMake();
+      if (game.score > game.best) {
+        game.best = game.score;
+        saveCurrentHighScore(game.best);
+      }
+      if (spotProgress.newlyCompleted && spotProgress.allDone) {
+        feedbackMessage.textContent = "Bucket! Distance challenge complete for this level.";
+      } else if (spotProgress.newlyCompleted) {
+        feedbackMessage.textContent = `Bucket! Spot progress ${spotProgress.current}/${spotProgress.required}.`;
+      } else {
+        feedbackMessage.textContent = "Bucket! Keep going on this spot challenge.";
+      }
       updateStats();
+      ball.flying = false;
+      game.shotResolved = true;
+      showShotNotice("Nice Shot!", "Made it through the hoop. Review the graph, then try again.");
+      return;
     }
 
     previousY = ball.y;
+    previousX = ball.x;
 
     const out =
       ball.y > canvas.height + 80 ||
@@ -353,10 +749,8 @@ function shoot() {
         updateStats();
       }
       ball.flying = false;
-      setTimeout(() => {
-        resetBall();
-        updateReadout();
-      }, 550);
+      game.shotResolved = true;
+      showShotNotice("Shot Ended", "Missed this one. Check the graph and try again.");
       return;
     }
 
@@ -374,12 +768,8 @@ function drawCourt() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = "rgba(68, 147, 255, 0.07)";
-  for (let i = 0; i < canvas.width; i += 56) {
-    ctx.fillRect(i, 0, 1, canvas.height);
-  }
-  for (let j = 0; j < canvas.height; j += 56) {
-    ctx.fillRect(0, j, canvas.width, 1);
-  }
+  for (let i = 0; i < canvas.width; i += 56) ctx.fillRect(i, 0, 1, canvas.height);
+  for (let j = 0; j < canvas.height; j += 56) ctx.fillRect(0, j, canvas.width, 1);
 
   const floor = ctx.createLinearGradient(0, floorY - 36, 0, canvas.height);
   floor.addColorStop(0, "#6f4f2f");
@@ -394,6 +784,20 @@ function drawCourt() {
   ctx.lineTo(canvas.width, floorY);
   ctx.stroke();
 
+  ctx.setLineDash([8, 8]);
+  ctx.lineWidth = 1.2;
+  ctx.font = "700 12px Inter, sans-serif";
+  DISTANCE_LINES.forEach((line) => {
+    ctx.strokeStyle = "rgba(185, 221, 255, 0.45)";
+    ctx.beginPath();
+    ctx.moveTo(line.x, floorY - 170);
+    ctx.lineTo(line.x, floorY);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(208, 232, 255, 0.86)";
+    ctx.fillText(line.label, line.x + 8, floorY - 144);
+  });
+  ctx.setLineDash([]);
+
   ctx.fillStyle = "#f4ede7";
   ctx.fillRect(backboard.x, backboard.y, backboard.w, backboard.h);
 
@@ -403,6 +807,12 @@ function drawCourt() {
   ctx.moveTo(rim.left, rim.y);
   ctx.lineTo(rim.right, rim.y);
   ctx.stroke();
+
+  ctx.fillStyle = "#ff6f47";
+  ctx.beginPath();
+  ctx.arc(rim.left, rim.y, RIM_NODE_RADIUS, 0, Math.PI * 2);
+  ctx.arc(rim.right, rim.y, RIM_NODE_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.strokeStyle = "rgba(255,255,255,0.6)";
   ctx.lineWidth = 1.4;
@@ -464,9 +874,7 @@ function drawShotPath() {
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(ball.path[0].x, ball.path[0].y);
-  for (let i = 1; i < ball.path.length; i += 1) {
-    ctx.lineTo(ball.path[i].x, ball.path[i].y);
-  }
+  for (let i = 1; i < ball.path.length; i += 1) ctx.lineTo(ball.path[i].x, ball.path[i].y);
   ctx.stroke();
 }
 
@@ -475,7 +883,6 @@ function drawArrow(x1, y1, x2, y2, color, label) {
   const dy = y2 - y1;
   const len = Math.hypot(dx, dy);
   if (len < 6) return;
-
   const ux = dx / len;
   const uy = dy / len;
   const arrowSize = 8;
@@ -570,59 +977,214 @@ function render() {
   drawBall();
   drawPhysicsVectors();
   updateReadout();
+  drawShotGraph();
   requestAnimationFrame(render);
 }
 
-enterLabBtn.addEventListener("click", () => {
-  const name = playerNameInput.value.trim();
-  if (!name) {
-    nameMessage.textContent = "Please enter a player name.";
-    nameMessage.style.color = "var(--danger)";
+function showAuthMessage(text, isError = false) {
+  authMessage.textContent = text;
+  authMessage.style.color = isError ? "var(--danger)" : "#cce7ff";
+}
+
+function setActiveUser({ key = null, username = "Guest", isGuest = false }) {
+  game.userKey = key;
+  game.playerName = username;
+  game.isGuest = isGuest;
+  game.best = getCurrentHighScore();
+  welcomeName.textContent = username;
+  hudName.textContent = username;
+}
+
+function openAuthModal(mode) {
+  authMode = mode;
+  const isSignIn = mode === "signin";
+  authModalTitle.textContent = isSignIn ? "Sign In" : "Create Account";
+  authModalSubtitle.textContent = isSignIn
+    ? "Sign in to keep your progress and personal high score."
+    : "Create a local demo account. Credentials are stored in your browser.";
+  authSubmitBtn.textContent = isSignIn ? "Sign In" : "Create Account";
+  authModalMessage.textContent = "";
+  authPasswordInput.value = "";
+
+  const storedLastUserKey = getStorageItem(LAST_USER_KEY) || getStorageItem(LAST_USER_LEGACY_KEY);
+  const lastUserKey = storedLastUserKey ? normalizeUserKey(storedLastUserKey) : "";
+  if (lastUserKey) {
+    const accounts = readAccounts();
+    authUsernameInput.value = accounts[lastUserKey]?.username ?? "";
+  } else {
+    authUsernameInput.value = "";
+  }
+
+  authModal.classList.remove("hidden");
+  authUsernameInput.focus();
+}
+
+function closeAuthModal() {
+  authModal.classList.add("hidden");
+  authModalMessage.textContent = "";
+  authPasswordInput.value = "";
+}
+
+function handleCreateAccount() {
+  const username = authUsernameInput.value.trim();
+  const password = authPasswordInput.value;
+  if (username.length < 3) {
+    authModalMessage.textContent = "Username must be at least 3 characters.";
+    authModalMessage.style.color = "var(--danger)";
     return;
   }
-  game.playerName = name;
-  welcomeName.textContent = name;
-  nameMessage.textContent = "";
+  if (password.length < 4) {
+    authModalMessage.textContent = "Password must be at least 4 characters.";
+    authModalMessage.style.color = "var(--danger)";
+    return;
+  }
+
+  const key = normalizeUserKey(username);
+  const accounts = readAccounts();
+  if (accounts[key]) {
+    authModalMessage.textContent = "That username already exists. Try signing in.";
+    authModalMessage.style.color = "var(--danger)";
+    return;
+  }
+
+  accounts[key] = { username: username.trim(), password, highScore: 0 };
+  const saved = writeAccounts(accounts);
+  if (!saved) {
+    authModalMessage.textContent = "Could not save account in this browser. Check private mode/storage settings.";
+    authModalMessage.style.color = "var(--danger)";
+    return;
+  }
+  setStorageItem(LAST_USER_KEY, key);
+  setStorageItem(LAST_USER_LEGACY_KEY, key);
+  setActiveUser({ key, username, isGuest: false });
+  closeAuthModal();
+  showAuthMessage(`Account created. Welcome, ${username}.`);
+  showScreen("level");
+}
+
+function handleSignIn() {
+  const username = authUsernameInput.value.trim();
+  const password = authPasswordInput.value;
+  const key = normalizeUserKey(username);
+  const accounts = readAccounts();
+  const account = accounts[key];
+
+  if (!account) {
+    authModalMessage.textContent = "No account found with that username.";
+    authModalMessage.style.color = "var(--danger)";
+    return;
+  }
+  if (account.password !== password) {
+    authModalMessage.textContent = "Incorrect password.";
+    authModalMessage.style.color = "var(--danger)";
+    return;
+  }
+
+  setStorageItem(LAST_USER_KEY, key);
+  setStorageItem(LAST_USER_LEGACY_KEY, key);
+  setActiveUser({ key, username: account.username, isGuest: false });
+  closeAuthModal();
+  showAuthMessage(`Welcome back, ${account.username}.`);
+  showScreen("level");
+}
+
+function showLandingWelcome() {
+  const storedLastUserKey = getStorageItem(LAST_USER_KEY) || getStorageItem(LAST_USER_LEGACY_KEY);
+  const lastUserKey = storedLastUserKey ? normalizeUserKey(storedLastUserKey) : "";
+  const accounts = readAccounts();
+  const lastUser = lastUserKey ? accounts[lastUserKey] : null;
+  if (lastUser) {
+    showAuthMessage(`Welcome back, ${lastUser.username}. Sign in to continue your progress.`);
+  } else {
+    showAuthMessage("Create a local account or continue as guest.");
+  }
+}
+
+signInBtn.addEventListener("click", () => openAuthModal("signin"));
+createAccountBtn.addEventListener("click", () => openAuthModal("create"));
+guestBtn.addEventListener("click", () => {
+  setActiveUser({ key: null, username: "Guest", isGuest: true });
+  showAuthMessage("Continuing as guest. Scores will stay only for this session.");
   showScreen("level");
 });
 
-levelOptions.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    setLevel(btn.dataset.level);
+authSubmitBtn.addEventListener("click", () => {
+  if (authMode === "create") {
+    handleCreateAccount();
+  } else {
+    handleSignIn();
+  }
+});
+
+authCancelBtn.addEventListener("click", closeAuthModal);
+authModal.addEventListener("click", (event) => {
+  if (event.target === authModal) closeAuthModal();
+});
+[authUsernameInput, authPasswordInput].forEach((input) => {
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") authSubmitBtn.click();
   });
+});
+
+levelOptions.forEach((btn) => {
+  btn.addEventListener("click", () => setLevel(btn.dataset.level));
 });
 
 startGameBtn.addEventListener("click", () => {
   game.score = 0;
   game.shots = 0;
   game.streak = 0;
-  game.best = 0;
+  game.best = getCurrentHighScore();
+  game.shotResolved = false;
+
   hudName.textContent = game.playerName;
   hudLevel.textContent = levels[game.level].label;
   applyLevelRules();
   updateStats();
   resetBall();
+  hideShotNotice();
+  updateGraphVisibility();
   feedbackMessage.textContent = "Tune controls and launch to explore projectile motion.";
   showScreen("game");
 });
 
 changeNameBtn.addEventListener("click", () => {
+  hideShotNotice();
+  showLandingWelcome();
   showScreen("name");
 });
 
 shootBtn.addEventListener("click", shoot);
-
 resetBtn.addEventListener("click", () => {
+  hideShotNotice();
   resetBall();
   updateReadout();
   feedbackMessage.textContent = "Shot reset.";
 });
-
 backBtn.addEventListener("click", () => {
+  hideShotNotice();
   showScreen("level");
 });
+tryAgainBtn.addEventListener("click", () => {
+  hideShotNotice();
+  resetBall();
+  updateReadout();
+  feedbackMessage.textContent = "Try another shot.";
+});
+distanceInput.addEventListener("input", () => {
+  if (ball.flying || game.shotResolved) return;
+  setLauncherX(Number(distanceInput.value));
+});
+nextSpotBtn.addEventListener("click", () => {
+  const cfg = levels[game.level];
+  if (cfg.distanceMode.type !== "spots" || ball.flying || game.shotResolved) return;
+  game.currentSpotIndex = (game.currentSpotIndex + 1) % cfg.distanceMode.spots.length;
+  setLauncherX(cfg.distanceMode.spots[game.currentSpotIndex]);
+  updateSpotInfo();
+});
+graphToggle.addEventListener("input", updateGraphVisibility);
 
-[angleInput, powerInput, gravityInput, massInput, dragInput, windInput].forEach((input) => {
+[angleInput, powerInput, gravityInput, massInput, dragInput, windInput, distanceInput].forEach((input) => {
   input.addEventListener("input", () => {
     updateLabels();
     updateReadout();
@@ -631,6 +1193,9 @@ backBtn.addEventListener("click", () => {
 
 updateLabels();
 setLevel("easy");
+showLandingWelcome();
 showScreen("name");
+hideShotNotice();
+updateGraphVisibility();
 updateReadout();
 render();
