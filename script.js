@@ -2,19 +2,8 @@ const nameScreen = document.getElementById("nameScreen");
 const levelScreen = document.getElementById("levelScreen");
 const gameScreen = document.getElementById("gameScreen");
 
-const signInBtn = document.getElementById("signInBtn");
-const createAccountBtn = document.getElementById("createAccountBtn");
 const guestBtn = document.getElementById("guestBtn");
 const authMessage = document.getElementById("authMessage");
-
-const authModal = document.getElementById("authModal");
-const authModalTitle = document.getElementById("authModalTitle");
-const authModalSubtitle = document.getElementById("authModalSubtitle");
-const authUsernameInput = document.getElementById("authUsernameInput");
-const authPasswordInput = document.getElementById("authPasswordInput");
-const authSubmitBtn = document.getElementById("authSubmitBtn");
-const authCancelBtn = document.getElementById("authCancelBtn");
-const authModalMessage = document.getElementById("authModalMessage");
 
 const welcomeName = document.getElementById("welcomeName");
 const levelOptions = Array.from(document.querySelectorAll(".level-option"));
@@ -79,11 +68,6 @@ const graphCtx = graphCanvas.getContext("2d");
 const canvas = document.getElementById("courtCanvas");
 const ctx = canvas.getContext("2d");
 
-const ACCOUNTS_KEY = "physicsHoopsLab.accounts.v1";
-const ACCOUNTS_LEGACY_KEY = "physicsHoopsLab.accounts";
-const LAST_USER_KEY = "physicsHoopsLab.lastUser.v1";
-const LAST_USER_LEGACY_KEY = "physicsHoopsLab.lastUser";
-
 const floorY = 500;
 const launcher = { x: 130, y: floorY - 110 };
 const rim = { left: 818, right: 874, y: 230 };
@@ -132,26 +116,7 @@ const game = {
 };
 
 let activeShotPhysics = null;
-let authMode = "signin";
-
-function getStorageItem(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch (error) {
-    console.warn("Storage read failed:", error);
-    return null;
-  }
-}
-
-function setStorageItem(key, value) {
-  try {
-    localStorage.setItem(key, value);
-    return true;
-  } catch (error) {
-    console.warn("Storage write failed:", error);
-    return false;
-  }
-}
+let goalCelebrationTimer = null;
 
 const levels = {
   easy: {
@@ -208,76 +173,12 @@ const levels = {
   }
 };
 
-function readAccounts() {
-  const rawPrimary = getStorageItem(ACCOUNTS_KEY);
-  const rawLegacy = getStorageItem(ACCOUNTS_LEGACY_KEY);
-  const raw = rawPrimary || rawLegacy;
-  if (!raw) return {};
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return {};
-
-    if (Array.isArray(parsed.users)) {
-      const migrated = {};
-      parsed.users.forEach((u) => {
-        if (!u || typeof u.username !== "string" || typeof u.password !== "string") return;
-        migrated[normalizeUserKey(u.username)] = {
-          username: u.username.trim(),
-          password: u.password,
-          highScore: Number.isFinite(Number(u.highScore)) ? Number(u.highScore) : 0
-        };
-      });
-      writeAccounts(migrated);
-      return migrated;
-    }
-
-    const normalized = {};
-    Object.entries(parsed).forEach(([key, value]) => {
-      if (!value || typeof value !== "object") return;
-      if (typeof value.username !== "string" || typeof value.password !== "string") return;
-      normalized[normalizeUserKey(key)] = {
-        username: value.username.trim(),
-        password: value.password,
-        highScore: Number.isFinite(Number(value.highScore)) ? Number(value.highScore) : 0
-      };
-    });
-    return normalized;
-  } catch (error) {
-    console.warn("Failed to parse account store:", error);
-    return {};
-  }
-}
-
-function writeAccounts(accounts) {
-  const payload = JSON.stringify(accounts);
-  const okPrimary = setStorageItem(ACCOUNTS_KEY, payload);
-  const okLegacy = setStorageItem(ACCOUNTS_LEGACY_KEY, payload);
-  return okPrimary || okLegacy;
-}
-
-function normalizeUserKey(username) {
-  return username.trim().toLowerCase();
-}
-
 function getCurrentHighScore() {
-  if (game.isGuest || !game.userKey) return game.guestBest;
-  const accounts = readAccounts();
-  const account = accounts[game.userKey];
-  return account?.highScore ?? 0;
+  return game.guestBest;
 }
 
 function saveCurrentHighScore(score) {
-  if (game.isGuest || !game.userKey) {
-    game.guestBest = Math.max(game.guestBest, score);
-    return;
-  }
-  const accounts = readAccounts();
-  const account = accounts[game.userKey];
-  if (!account) return;
-  account.highScore = Math.max(account.highScore ?? 0, score);
-  accounts[game.userKey] = account;
-  writeAccounts(accounts);
+  game.guestBest = Math.max(game.guestBest, score);
 }
 
 function showScreen(screen) {
@@ -294,6 +195,43 @@ function showShotNotice(title, message) {
   shotNoticeTitle.textContent = title;
   shotNoticeMessage.textContent = message;
   shotNotice.classList.remove("hidden");
+}
+
+function clearGoalCelebration() {
+  const active = document.querySelector(".goal-celebration");
+  if (active) active.remove();
+  if (goalCelebrationTimer) {
+    clearTimeout(goalCelebrationTimer);
+    goalCelebrationTimer = null;
+  }
+}
+
+function celebrateGoal() {
+  clearGoalCelebration();
+
+  const overlay = document.createElement("div");
+  overlay.className = "goal-celebration";
+
+  const banner = document.createElement("p");
+  banner.className = "goal-banner";
+  banner.textContent = "Congratulations!";
+  overlay.appendChild(banner);
+
+  const colors = ["#ffd166", "#6ee7ff", "#8cff9e", "#ff8fab", "#fdbb2d", "#a78bfa"];
+  for (let i = 0; i < 90; i += 1) {
+    const piece = document.createElement("span");
+    piece.className = "confetti-piece";
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.background = colors[i % colors.length];
+    piece.style.setProperty("--drift", `${(Math.random() - 0.5) * 160}px`);
+    piece.style.setProperty("--rot", `${Math.random() * 680 - 340}deg`);
+    piece.style.setProperty("--fall-duration", `${1.2 + Math.random() * 1.4}s`);
+    piece.style.animationDelay = `${Math.random() * 0.24}s`;
+    overlay.appendChild(piece);
+  }
+
+  document.body.appendChild(overlay);
+  goalCelebrationTimer = setTimeout(clearGoalCelebration, 2300);
 }
 
 function updateGraphVisibility() {
@@ -728,6 +666,7 @@ function shoot() {
         feedbackMessage.textContent = "Bucket! Keep going on this spot challenge.";
       }
       updateStats();
+      celebrateGoal();
       ball.flying = false;
       game.shotResolved = true;
       showShotNotice("Nice Shot!", "Made it through the hoop. Review the graph, then try again.");
@@ -986,144 +925,23 @@ function showAuthMessage(text, isError = false) {
   authMessage.style.color = isError ? "var(--danger)" : "#cce7ff";
 }
 
-function setActiveUser({ key = null, username = "Guest", isGuest = false }) {
-  game.userKey = key;
-  game.playerName = username;
-  game.isGuest = isGuest;
+function setGuestUser() {
+  game.userKey = null;
+  game.playerName = "Guest";
+  game.isGuest = true;
   game.best = getCurrentHighScore();
-  welcomeName.textContent = username;
-  hudName.textContent = username;
-}
-
-function openAuthModal(mode) {
-  authMode = mode;
-  const isSignIn = mode === "signin";
-  authModalTitle.textContent = isSignIn ? "Sign In" : "Create Account";
-  authModalSubtitle.textContent = isSignIn
-    ? "Sign in to keep your progress and personal high score."
-    : "Create a local demo account. Credentials are stored in your browser.";
-  authSubmitBtn.textContent = isSignIn ? "Sign In" : "Create Account";
-  authModalMessage.textContent = "";
-  authPasswordInput.value = "";
-
-  const storedLastUserKey = getStorageItem(LAST_USER_KEY) || getStorageItem(LAST_USER_LEGACY_KEY);
-  const lastUserKey = storedLastUserKey ? normalizeUserKey(storedLastUserKey) : "";
-  if (lastUserKey) {
-    const accounts = readAccounts();
-    authUsernameInput.value = accounts[lastUserKey]?.username ?? "";
-  } else {
-    authUsernameInput.value = "";
-  }
-
-  authModal.classList.remove("hidden");
-  authUsernameInput.focus();
-}
-
-function closeAuthModal() {
-  authModal.classList.add("hidden");
-  authModalMessage.textContent = "";
-  authPasswordInput.value = "";
-}
-
-function handleCreateAccount() {
-  const username = authUsernameInput.value.trim();
-  const password = authPasswordInput.value;
-  if (username.length < 3) {
-    authModalMessage.textContent = "Username must be at least 3 characters.";
-    authModalMessage.style.color = "var(--danger)";
-    return;
-  }
-  if (password.length < 4) {
-    authModalMessage.textContent = "Password must be at least 4 characters.";
-    authModalMessage.style.color = "var(--danger)";
-    return;
-  }
-
-  const key = normalizeUserKey(username);
-  const accounts = readAccounts();
-  if (accounts[key]) {
-    authModalMessage.textContent = "That username already exists. Try signing in.";
-    authModalMessage.style.color = "var(--danger)";
-    return;
-  }
-
-  accounts[key] = { username: username.trim(), password, highScore: 0 };
-  const saved = writeAccounts(accounts);
-  if (!saved) {
-    authModalMessage.textContent = "Could not save account in this browser. Check private mode/storage settings.";
-    authModalMessage.style.color = "var(--danger)";
-    return;
-  }
-  setStorageItem(LAST_USER_KEY, key);
-  setStorageItem(LAST_USER_LEGACY_KEY, key);
-  setActiveUser({ key, username, isGuest: false });
-  closeAuthModal();
-  showAuthMessage(`Account created. Welcome, ${username}.`);
-  showScreen("level");
-}
-
-function handleSignIn() {
-  const username = authUsernameInput.value.trim();
-  const password = authPasswordInput.value;
-  const key = normalizeUserKey(username);
-  const accounts = readAccounts();
-  const account = accounts[key];
-
-  if (!account) {
-    authModalMessage.textContent = "No account found with that username.";
-    authModalMessage.style.color = "var(--danger)";
-    return;
-  }
-  if (account.password !== password) {
-    authModalMessage.textContent = "Incorrect password.";
-    authModalMessage.style.color = "var(--danger)";
-    return;
-  }
-
-  setStorageItem(LAST_USER_KEY, key);
-  setStorageItem(LAST_USER_LEGACY_KEY, key);
-  setActiveUser({ key, username: account.username, isGuest: false });
-  closeAuthModal();
-  showAuthMessage(`Welcome back, ${account.username}.`);
-  showScreen("level");
+  welcomeName.textContent = "Guest";
+  hudName.textContent = "Guest";
 }
 
 function showLandingWelcome() {
-  const storedLastUserKey = getStorageItem(LAST_USER_KEY) || getStorageItem(LAST_USER_LEGACY_KEY);
-  const lastUserKey = storedLastUserKey ? normalizeUserKey(storedLastUserKey) : "";
-  const accounts = readAccounts();
-  const lastUser = lastUserKey ? accounts[lastUserKey] : null;
-  if (lastUser) {
-    showAuthMessage(`Welcome back, ${lastUser.username}. Sign in to continue your progress.`);
-  } else {
-    showAuthMessage("Create a local account or continue as guest.");
-  }
+  showAuthMessage("Guest mode only. Tap continue to play.");
 }
 
-signInBtn.addEventListener("click", () => openAuthModal("signin"));
-createAccountBtn.addEventListener("click", () => openAuthModal("create"));
 guestBtn.addEventListener("click", () => {
-  setActiveUser({ key: null, username: "Guest", isGuest: true });
+  setGuestUser();
   showAuthMessage("Continuing as guest. Scores will stay only for this session.");
   showScreen("level");
-});
-
-authSubmitBtn.addEventListener("click", () => {
-  if (authMode === "create") {
-    handleCreateAccount();
-  } else {
-    handleSignIn();
-  }
-});
-
-authCancelBtn.addEventListener("click", closeAuthModal);
-authModal.addEventListener("click", (event) => {
-  if (event.target === authModal) closeAuthModal();
-});
-[authUsernameInput, authPasswordInput].forEach((input) => {
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") authSubmitBtn.click();
-  });
 });
 
 levelOptions.forEach((btn) => {
@@ -1150,6 +968,7 @@ startGameBtn.addEventListener("click", () => {
 
 changeNameBtn.addEventListener("click", () => {
   hideShotNotice();
+  setGuestUser();
   showLandingWelcome();
   showScreen("name");
 });
@@ -1193,6 +1012,7 @@ graphToggle.addEventListener("input", updateGraphVisibility);
 
 updateLabels();
 setLevel("easy");
+setGuestUser();
 showLandingWelcome();
 showScreen("name");
 hideShotNotice();
