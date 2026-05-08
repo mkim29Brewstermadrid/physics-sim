@@ -107,21 +107,6 @@
           </div>
 
           <div class="control-row">
-            <label for="massInput">Mass (kg) <span id="massValue">0.62</span></label>
-            <input id="massInput" type="range" min="0.3" max="2.2" step="0.01" value="0.62" />
-          </div>
-
-          <div class="control-row">
-            <label for="dragInput">Drag <span id="dragValue">0.010</span></label>
-            <input id="dragInput" type="range" min="0.003" max="0.028" step="0.001" value="0.010" />
-          </div>
-
-          <div class="control-row">
-            <label for="windInput">Wind <span id="windValue">0.0</span></label>
-            <input id="windInput" type="range" min="-18" max="18" step="0.1" value="0" />
-          </div>
-
-          <div class="control-row">
             <label for="distanceInput">Launch Distance <span id="distanceValue">Mid-range</span></label>
             <input id="distanceInput" type="range" min="100" max="260" step="1" value="130" />
           </div>
@@ -152,7 +137,7 @@
             <button id="backBtn" class="btn btn-secondary">Back to Levels</button>
           </div>
 
-          <p id="feedbackMessage" class="message">Tune the sliders and shoot.</p>
+          <p id="feedbackMessage" class="message">Tune values and shoot.</p>
         </aside>
       </div>
 
@@ -160,7 +145,10 @@
         <div class="card shot-notice-card">
           <h3 id="shotNoticeTitle">Shot Result</h3>
           <p id="shotNoticeMessage" class="sub">Result text</p>
-          <button id="tryAgainBtn" class="btn btn-primary">Try Again</button>
+          <div class="shot-notice-actions">
+            <button id="viewCalcBtn" class="btn btn-secondary">See calculations + graph</button>
+            <button id="tryAgainBtn" class="btn btn-primary">Try Again</button>
+          </div>
         </div>
       </div>
     </section>

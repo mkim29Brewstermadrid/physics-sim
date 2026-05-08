@@ -23,9 +23,6 @@ const bestStat = document.getElementById("bestStat");
 const angleInput = document.getElementById("angleInput");
 const powerInput = document.getElementById("powerInput");
 const gravityInput = document.getElementById("gravityInput");
-const massInput = document.getElementById("massInput");
-const dragInput = document.getElementById("dragInput");
-const windInput = document.getElementById("windInput");
 const distanceInput = document.getElementById("distanceInput");
 const previewToggle = document.getElementById("previewToggle");
 const graphToggle = document.getElementById("graphToggle");
@@ -37,9 +34,6 @@ const nextSpotBtn = document.getElementById("nextSpotBtn");
 const angleValue = document.getElementById("angleValue");
 const powerValue = document.getElementById("powerValue");
 const gravityValue = document.getElementById("gravityValue");
-const massValue = document.getElementById("massValue");
-const dragValue = document.getElementById("dragValue");
-const windValue = document.getElementById("windValue");
 
 const speedReadout = document.getElementById("speedReadout");
 const vxReadout = document.getElementById("vxReadout");
@@ -57,6 +51,7 @@ const shootBtn = document.getElementById("shootBtn");
 const resetBtn = document.getElementById("resetBtn");
 const backBtn = document.getElementById("backBtn");
 const tryAgainBtn = document.getElementById("tryAgainBtn");
+const viewCalcBtn = document.getElementById("viewCalcBtn");
 const shotNotice = document.getElementById("shotNotice");
 const shotNoticeTitle = document.getElementById("shotNoticeTitle");
 const shotNoticeMessage = document.getElementById("shotNoticeMessage");
@@ -116,15 +111,13 @@ const game = {
 };
 
 let activeShotPhysics = null;
-let goalCelebrationTimer = null;
 
 const levels = {
   easy: {
     label: "Easy · Ideal Projectile",
-    text: "Make 1 shot from the mid-range line.",
-    defaults: { mass: 0.62, drag: 0.01, wind: 0 },
-    controls: { mass: false, drag: false, wind: false },
-    distanceMode: { type: "spots", spots: [180], labels: ["Mid-range Line"], makesPerSpot: 1 },
+    text: "Make 2 shots from the mid-range line.",
+    distanceMode: { type: "spots", spots: [180], labels: ["Mid-range Line"], makesPerSpot: 2 },
+    inputMode: "slider",
     showPreview: true,
     sliderRules: {
       angle: { min: 20, max: 85, step: 1, value: 52 },
@@ -134,16 +127,15 @@ const levels = {
     forgiveness: 16
   },
   medium: {
-    label: "Medium · Vacuum + Crosswind",
-    text: "Make 1 shot from each line. Fixed +3.0 crosswind.",
-    defaults: { mass: 0.62, drag: 0.01, wind: 3.0 },
-    controls: { mass: false, drag: false, wind: false },
+    label: "Medium · Guided Vacuum",
+    text: "Make 2 shots from two lines with typed values.",
     distanceMode: {
       type: "spots",
-      spots: [280, 180, 80],
-      labels: ["Paint Line", "Mid-range Line", "Three-point Line"],
-      makesPerSpot: 1
+      spots: [280, 80],
+      labels: ["Paint Line", "Three-point Line"],
+      makesPerSpot: 2
     },
+    inputMode: "typed",
     showPreview: true,
     sliderRules: {
       angle: { min: 40, max: 64, step: 2, value: 52 },
@@ -153,16 +145,15 @@ const levels = {
     forgiveness: 10
   },
   hard: {
-    label: "Hard · Vacuum + Strong Crosswind",
-    text: "Make 2 shots from each line. No trajectory guide in Hard mode.",
-    defaults: { mass: 0.62, drag: 0.01, wind: 6.0 },
-    controls: { mass: false, drag: false, wind: false },
+    label: "Hard · Vacuum Challenge",
+    text: "Make 2 shots from all lines with typed values and no trajectory guide.",
     distanceMode: {
       type: "spots",
       spots: [280, 180, 80],
       labels: ["Paint Line", "Mid-range Line", "Three-point Line"],
       makesPerSpot: 2
     },
+    inputMode: "typed",
     showPreview: false,
     sliderRules: {
       angle: { min: 38, max: 72, step: 1, value: 54 },
@@ -195,43 +186,6 @@ function showShotNotice(title, message) {
   shotNoticeTitle.textContent = title;
   shotNoticeMessage.textContent = message;
   shotNotice.classList.remove("hidden");
-}
-
-function clearGoalCelebration() {
-  const active = document.querySelector(".goal-celebration");
-  if (active) active.remove();
-  if (goalCelebrationTimer) {
-    clearTimeout(goalCelebrationTimer);
-    goalCelebrationTimer = null;
-  }
-}
-
-function celebrateGoal() {
-  clearGoalCelebration();
-
-  const overlay = document.createElement("div");
-  overlay.className = "goal-celebration";
-
-  const banner = document.createElement("p");
-  banner.className = "goal-banner";
-  banner.textContent = "Congratulations!";
-  overlay.appendChild(banner);
-
-  const colors = ["#ffd166", "#6ee7ff", "#8cff9e", "#ff8fab", "#fdbb2d", "#a78bfa"];
-  for (let i = 0; i < 90; i += 1) {
-    const piece = document.createElement("span");
-    piece.className = "confetti-piece";
-    piece.style.left = `${Math.random() * 100}%`;
-    piece.style.background = colors[i % colors.length];
-    piece.style.setProperty("--drift", `${(Math.random() - 0.5) * 160}px`);
-    piece.style.setProperty("--rot", `${Math.random() * 680 - 340}deg`);
-    piece.style.setProperty("--fall-duration", `${1.2 + Math.random() * 1.4}s`);
-    piece.style.animationDelay = `${Math.random() * 0.24}s`;
-    overlay.appendChild(piece);
-  }
-
-  document.body.appendChild(overlay);
-  goalCelebrationTimer = setTimeout(clearGoalCelebration, 2300);
 }
 
 function updateGraphVisibility() {
@@ -325,12 +279,6 @@ function updateStats() {
   bestStat.textContent = String(game.best);
 }
 
-function setControlEnabled(input, enabled) {
-  input.disabled = !enabled;
-  const row = input.closest(".control-row, .preview-row");
-  if (row) row.classList.toggle("disabled-control", !enabled);
-}
-
 function nearestDistanceLabel(x) {
   let best = DISTANCE_LINES[0];
   let bestDelta = Math.abs(x - best.x);
@@ -396,25 +344,36 @@ function updateLabels() {
   angleValue.textContent = `${Number(angleInput.value).toFixed(0)}°`;
   powerValue.textContent = Number(powerInput.value).toFixed(0);
   gravityValue.textContent = Number(gravityInput.value).toFixed(1);
-  massValue.textContent = Number(massInput.value).toFixed(2);
-  dragValue.textContent = Number(dragInput.value).toFixed(3);
-  windValue.textContent = Number(windInput.value).toFixed(1);
   distanceValue.textContent = nearestDistanceLabel(launcher.x);
 }
 
-function applyLevelRules() {
+function setInputMode(cfg) {
+  const controls = [
+    [angleInput, cfg.sliderRules.angle],
+    [powerInput, cfg.sliderRules.power],
+    [gravityInput, cfg.sliderRules.gravity]
+  ];
+  const typed = cfg.inputMode === "typed";
+  controls.forEach(([input, rule]) => {
+    input.type = typed ? "number" : "range";
+    input.min = String(rule.min);
+    input.max = String(rule.max);
+    input.step = String(rule.step);
+    input.value = String(rule.value);
+  });
+}
+
+function clampNumericInputs() {
   const cfg = levels[game.level];
   applySliderRule(angleInput, cfg.sliderRules.angle);
   applySliderRule(powerInput, cfg.sliderRules.power);
   applySliderRule(gravityInput, cfg.sliderRules.gravity);
+}
 
-  setControlEnabled(massInput, cfg.controls.mass);
-  setControlEnabled(dragInput, cfg.controls.drag);
-  setControlEnabled(windInput, cfg.controls.wind);
-
-  massInput.value = cfg.defaults.mass ?? 0.62;
-  dragInput.value = cfg.defaults.drag ?? 0.01;
-  windInput.value = cfg.defaults.wind ?? 0;
+function applyLevelRules() {
+  const cfg = levels[game.level];
+  setInputMode(cfg);
+  clampNumericInputs();
 
   applyDistanceMode(cfg);
 
@@ -439,21 +398,17 @@ function getPhysicsFromControls() {
   const angleRad = (angleDeg * Math.PI) / 180;
   const power = Number(powerInput.value);
   const gravity = Number(gravityInput.value);
-  const mass = Number(massInput.value);
-  const drag = Number(dragInput.value);
-  const wind = Number(windInput.value);
-  const vacuum = true;
 
   const speed = power * LAUNCH_SPEED_SCALE;
   const vx0 = Math.cos(angleRad) * speed;
   const vy0 = -Math.abs(Math.sin(angleRad) * speed);
 
-  return { angleDeg, angleRad, power, gravity, mass, drag, wind, vacuum, speed, vx0, vy0 };
+  return { angleDeg, angleRad, power, gravity, speed, vx0, vy0 };
 }
 
 function computeAccelerations(vx, vy, physics) {
   return {
-    ax: physics.wind * 8,
+    ax: 0,
     ay: physics.gravity * GRAVITY_PIXEL_SCALE
   };
 }
@@ -568,7 +523,7 @@ function updateReadout() {
     `${y0.toFixed(1)} + (${physics.vy0.toFixed(1)})(${t.toFixed(2)}) + 0.5(${(physics.gravity * GRAVITY_PIXEL_SCALE).toFixed(1)})(${(t * t).toFixed(2)}) = ${yIdeal.toFixed(1)}`;
 
   coordNote.textContent =
-    "Vacuum mode only: drag = 0, so mass does not change trajectory for equal initial velocity. Upward launch starts with negative vy in canvas coordinates.";
+    "Vacuum mode only: horizontal acceleration is zero and vertical acceleration is gravity. Upward launch starts with negative vy in canvas coordinates.";
 }
 
 function getMissFeedback(finalX) {
@@ -600,6 +555,7 @@ function registerSpotMake() {
 
 function shoot() {
   if (ball.flying || game.shotResolved) return;
+  clampNumericInputs();
 
   const physics = getPhysicsFromControls();
   activeShotPhysics = { ...physics };
@@ -659,17 +615,21 @@ function shoot() {
         saveCurrentHighScore(game.best);
       }
       if (spotProgress.newlyCompleted && spotProgress.allDone) {
-        feedbackMessage.textContent = "Bucket! Distance challenge complete for this level.";
+        feedbackMessage.textContent = "Bucket! Level challenge completed.";
       } else if (spotProgress.newlyCompleted) {
         feedbackMessage.textContent = `Bucket! Spot progress ${spotProgress.current}/${spotProgress.required}.`;
       } else {
         feedbackMessage.textContent = "Bucket! Keep going on this spot challenge.";
       }
       updateStats();
-      celebrateGoal();
       ball.flying = false;
       game.shotResolved = true;
-      showShotNotice("Nice Shot!", "Made it through the hoop. Review the graph, then try again.");
+      showShotNotice(
+        spotProgress.allDone ? "Level Complete!" : "Nice Shot!",
+        spotProgress.allDone
+          ? "Challenge complete. You can still review calculations and keep shooting."
+          : "Made it through the hoop. Review the graph, then try again."
+      );
       return;
     }
 
@@ -990,6 +950,12 @@ tryAgainBtn.addEventListener("click", () => {
   updateReadout();
   feedbackMessage.textContent = "Try another shot.";
 });
+viewCalcBtn.addEventListener("click", () => {
+  graphToggle.checked = true;
+  updateGraphVisibility();
+  hideShotNotice();
+  feedbackMessage.textContent = "Graph enabled. Review the trajectory and equations.";
+});
 distanceInput.addEventListener("input", () => {
   if (ball.flying || game.shotResolved) return;
   setLauncherX(Number(distanceInput.value));
@@ -1003,8 +969,15 @@ nextSpotBtn.addEventListener("click", () => {
 });
 graphToggle.addEventListener("input", updateGraphVisibility);
 
-[angleInput, powerInput, gravityInput, massInput, dragInput, windInput, distanceInput].forEach((input) => {
+[angleInput, powerInput, gravityInput, distanceInput].forEach((input) => {
   input.addEventListener("input", () => {
+    updateLabels();
+    updateReadout();
+  });
+});
+[angleInput, powerInput, gravityInput].forEach((input) => {
+  input.addEventListener("change", () => {
+    clampNumericInputs();
     updateLabels();
     updateReadout();
   });
