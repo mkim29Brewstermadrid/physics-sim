@@ -741,6 +741,62 @@ function resolveSoccerGoalieCollision() {
   return true;
 }
 
+function resolveSoccerGoalFrameCollision() {
+  const goalX = soccerGoal.x;
+  const goalY = soccerGoal.centerY;
+  const goalW = 100;
+  const goalH = 130;
+  
+  const leftPost = goalX - goalW / 2;
+  const rightPost = goalX + goalW / 2;
+  const topBar = goalY - goalH / 2;
+  const bottomLine = goalY + goalH / 2;
+  
+  let hitFrame = false;
+
+  // Left post collision
+  if (Math.abs(ball.x - leftPost) < ball.r && ball.y > topBar - ball.r && ball.y < bottomLine + ball.r) {
+    if (ball.vx < 0) {
+      ball.x = leftPost - ball.r;
+      ball.vx = -ball.vx * 0.4;
+      ball.vy *= 0.9;
+      hitFrame = true;
+    }
+  }
+
+  // Right post collision
+  if (Math.abs(ball.x - rightPost) < ball.r && ball.y > topBar - ball.r && ball.y < bottomLine + ball.r) {
+    if (ball.vx > 0) {
+      ball.x = rightPost + ball.r;
+      ball.vx = -ball.vx * 0.4;
+      ball.vy *= 0.9;
+      hitFrame = true;
+    }
+  }
+
+  // Top crossbar collision
+  if (Math.abs(ball.y - topBar) < ball.r && ball.x > leftPost - ball.r && ball.x < rightPost + ball.r) {
+    if (ball.vy < 0) {
+      ball.y = topBar - ball.r;
+      ball.vy = -ball.vy * 0.4;
+      ball.vx *= 0.9;
+      hitFrame = true;
+    }
+  }
+
+  // Bottom goal line collision (only if coming from inside goal area)
+  if (Math.abs(ball.y - bottomLine) < ball.r && ball.x > leftPost - ball.r && ball.x < rightPost + ball.r) {
+    if (ball.vy > 0) {
+      ball.y = bottomLine + ball.r;
+      ball.vy = -ball.vy * 0.4;
+      ball.vx *= 0.9;
+      hitFrame = true;
+    }
+  }
+
+  return hitFrame;
+}
+
 function updateSoccerGoalie(dt = 1 / 60) {
   soccerGoalie.t += dt;
   const period = 3.0;
