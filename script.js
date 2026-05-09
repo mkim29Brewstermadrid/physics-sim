@@ -996,63 +996,87 @@ function drawCourt() {
   for (let j = 0; j < canvas.height; j += 56) ctx.fillRect(0, j, canvas.width, 1);
 
   if (game.sport === "soccer") {
-    // Grass field background
+    // Grass field background - more vibrant
     const grassGradient = ctx.createLinearGradient(0, 0, 0, floorY);
-    grassGradient.addColorStop(0, "#3d7c4a");
-    grassGradient.addColorStop(1, "#2e5a38");
+    grassGradient.addColorStop(0, "#4a9d5a");
+    grassGradient.addColorStop(0.5, "#3d8a4a");
+    grassGradient.addColorStop(1, "#2d6d39");
     ctx.fillStyle = grassGradient;
     ctx.fillRect(0, 0, canvas.width, floorY);
 
-    // Grass texture effect
-    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
-    for (let i = 0; i < 80; i++) {
+    // Grass texture effect - more detailed
+    ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+    for (let i = 0; i < 120; i++) {
       const x = Math.random() * canvas.width;
       const y = Math.random() * floorY;
-      const size = Math.random() * 2 + 1;
+      const size = Math.random() * 1.5 + 0.5;
       ctx.fillRect(x, y, size, size);
     }
 
-    // Field markings
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+    // Highlight grass areas
+    ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
+    for (let i = 0; i < 40; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * floorY;
+      ctx.fillRect(x, y, Math.random() * 3, Math.random() * 3);
+    }
+
+    // Field boundary
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(10, 30, canvas.width - 20, floorY - 50);
+
+    // Field markings - white lines
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
     ctx.lineWidth = 2;
     
     // Center line (full height)
     ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, 60);
-    ctx.lineTo(canvas.width / 2, floorY);
+    ctx.moveTo(canvas.width / 2, 30);
+    ctx.lineTo(canvas.width / 2, floorY - 20);
     ctx.stroke();
 
-    // Distance lines (more spaced)
+    // Distance lines - properly positioned
     ctx.setLineDash([8, 8]);
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.5;
     ctx.font = "700 12px Inter, sans-serif";
     SOCCER_DISTANCE_LINES.forEach((line) => {
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
       ctx.beginPath();
-      ctx.moveTo(line.x, 60);
+      ctx.moveTo(line.x, 30);
       ctx.lineTo(line.x, floorY - 20);
       ctx.stroke();
-      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-      ctx.fillText(line.label, line.x + 8, 80);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+      ctx.fillText(line.label, line.x + 8, 48);
     });
     ctx.setLineDash([]);
 
-    // Wall (keep it, but styled better)
-    ctx.fillStyle = "rgba(100, 100, 100, 0.5)";
-    ctx.fillRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
-    ctx.strokeStyle = "rgba(60, 60, 60, 0.8)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
+    // Wall - only show in medium and hard
+    if (game.level !== "easy") {
+      ctx.fillStyle = "rgba(120, 120, 120, 0.6)";
+      ctx.fillRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
+      ctx.strokeStyle = "rgba(80, 80, 80, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
+      
+      // Wall texture
+      ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+      for (let i = 0; i < 20; i++) {
+        const wx = soccerWall.x + Math.random() * soccerWall.w;
+        const wy = soccerWall.y + Math.random() * soccerWall.h;
+        ctx.fillRect(wx, wy, 2, 2);
+      }
+    }
 
-    // Draw actual soccer goal frame
+    // Draw soccer goal frame
     const goalX = soccerGoal.x;
     const goalY = soccerGoal.centerY;
-    const goalW = 60;
-    const goalH = 90;
+    const goalW = 70;
+    const goalH = 100;
 
-    // Goal posts (vertical lines)
+    // Goal posts (vertical lines - white)
     ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.moveTo(goalX - goalW / 2, goalY - goalH / 2);
     ctx.lineTo(goalX - goalW / 2, goalY + goalH / 2);
@@ -1074,68 +1098,93 @@ function drawCourt() {
     ctx.lineTo(goalX + goalW / 2, goalY + goalH / 2);
     ctx.stroke();
 
-    // Net (light blue mesh)
-    ctx.strokeStyle = "rgba(150, 200, 255, 0.35)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 6; i++) {
-      const x = goalX - goalW / 2 + (i * goalW) / 6;
+    // Real soccer net - hanging effect with depth
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.lineWidth = 1.2;
+    
+    // Vertical net lines (hanging from crossbar)
+    for (let i = 0; i <= 8; i++) {
+      const xStart = goalX - goalW / 2 + (i * goalW) / 8;
+      const xEnd = goalX - goalW / 2 + (i * goalW) / 8 + 15; // Hang forward
       ctx.beginPath();
-      ctx.moveTo(x, goalY - goalH / 2);
-      ctx.lineTo(x, goalY + goalH / 2);
+      ctx.moveTo(xStart, goalY - goalH / 2);
+      ctx.quadraticCurveTo((xStart + xEnd) / 2, goalY - goalH / 4, xEnd, goalY + goalH / 2 + 20);
       ctx.stroke();
     }
-    for (let j = 0; j <= 8; j++) {
-      const y = goalY - goalH / 2 + (j * goalH) / 8;
+    
+    // Horizontal net lines (curved - net sag)
+    for (let j = 0; j <= 6; j++) {
+      const yStart = goalY - goalH / 2 + (j * (goalH + 20)) / 6;
+      const curveAmount = (j / 6) * 12; // More sag at bottom
+      
       ctx.beginPath();
-      ctx.moveTo(goalX - goalW / 2, y);
-      ctx.lineTo(goalX + goalW / 2, y);
+      ctx.moveTo(goalX - goalW / 2, yStart);
+      const midPoint = goalX + (15 - curveAmount);
+      const endX = goalX - goalW / 2 + 15;
+      
+      for (let k = 0; k <= 8; k++) {
+        const t = k / 8;
+        const x = goalX - goalW / 2 + t * goalW;
+        const xDraw = x + (Math.sin(t * Math.PI) * (15 - curveAmount));
+        if (k === 0) ctx.moveTo(x, yStart);
+        else ctx.lineTo(xDraw, yStart + (j / 6) * 15);
+      }
       ctx.stroke();
     }
 
-    // Goalkeeper figure (more character-like)
+    // Goalkeeper figure
     const goalieX = soccerGoalie.x;
     const goalieY = soccerGoalie.y;
 
     // Body
     ctx.fillStyle = "#ff6b5b";
     ctx.beginPath();
-    ctx.arc(goalieX, goalieY, 10, 0, Math.PI * 2);
+    ctx.arc(goalieX, goalieY, 11, 0, Math.PI * 2);
     ctx.fill();
 
     // Head
     ctx.fillStyle = "#ffdbac";
     ctx.beginPath();
-    ctx.arc(goalieX, goalieY - 14, 6, 0, Math.PI * 2);
+    ctx.arc(goalieX, goalieY - 16, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    // Arms
+    // Arms raised (ready to catch)
     ctx.strokeStyle = "#ffdbac";
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(goalieX - 10, goalieY - 2);
-    ctx.lineTo(goalieX - 18, goalieY - 4);
+    ctx.moveTo(goalieX - 11, goalieY - 2);
+    ctx.lineTo(goalieX - 22, goalieY - 12);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(goalieX + 10, goalieY - 2);
-    ctx.lineTo(goalieX + 18, goalieY - 4);
+    ctx.moveTo(goalieX + 11, goalieY - 2);
+    ctx.lineTo(goalieX + 22, goalieY - 12);
     ctx.stroke();
+
+    // Hands
+    ctx.fillStyle = "#ffdbac";
+    ctx.beginPath();
+    ctx.arc(goalieX - 22, goalieY - 12, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(goalieX + 22, goalieY - 12, 3, 0, Math.PI * 2);
+    ctx.fill();
 
     // Legs
     ctx.beginPath();
-    ctx.moveTo(goalieX - 5, goalieY + 10);
-    ctx.lineTo(goalieX - 5, goalieY + 20);
+    ctx.moveTo(goalieX - 6, goalieY + 11);
+    ctx.lineTo(goalieX - 6, goalieY + 22);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(goalieX + 5, goalieY + 10);
-    ctx.lineTo(goalieX + 5, goalieY + 20);
+    ctx.moveTo(goalieX + 6, goalieY + 11);
+    ctx.lineTo(goalieX + 6, goalieY + 22);
     ctx.stroke();
 
     // Goalkeeper outline
-    ctx.strokeStyle = "rgba(50, 50, 50, 0.6)";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(50, 50, 50, 0.7)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(goalieX, goalieY, 10, 0, Math.PI * 2);
+    ctx.arc(goalieX, goalieY, 11, 0, Math.PI * 2);
     ctx.stroke();
   } else {
     const floor = ctx.createLinearGradient(0, floorY - 36, 0, canvas.height);
@@ -1239,27 +1288,96 @@ function drawSpotDragger() {
 }
 
 function drawLauncher() {
-  ctx.fillStyle = "#2a3e58";
-  ctx.beginPath();
-  ctx.roundRect(launcher.x - 44, launcher.y + 12, 88, 66, 16);
-  ctx.fill();
+  if (game.sport === "soccer") {
+    // Draw soccer player kicking
+    const playerX = launcher.x + 30;
+    const playerY = launcher.y + 20;
 
-  ctx.fillStyle = "#ffd2a7";
-  ctx.beginPath();
-  ctx.arc(launcher.x - 12, launcher.y - 2, 18, 0, Math.PI * 2);
-  ctx.fill();
+    // Body
+    ctx.fillStyle = "#2a5a8a";
+    ctx.beginPath();
+    ctx.arc(playerX, playerY, 11, 0, Math.PI * 2);
+    ctx.fill();
 
-  const physics = getPhysicsFromControls();
-  const len = 56;
-  const armX = launcher.x + Math.cos(physics.angleRad) * len;
-  const armY = launcher.y - Math.sin(physics.angleRad) * len;
-  ctx.strokeStyle = "#ffd2a7";
-  ctx.lineWidth = 8;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(launcher.x + 2, launcher.y + 32);
-  ctx.lineTo(armX, armY);
-  ctx.stroke();
+    // Head
+    ctx.fillStyle = "#ffdbac";
+    ctx.beginPath();
+    ctx.arc(playerX, playerY - 18, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Jersey details
+    ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+    ctx.beginPath();
+    ctx.arc(playerX, playerY, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Get physics for dynamic kick angle
+    const physics = getPhysicsFromControls();
+    const kickStrength = (physics.power - 30) / 62; // 0 to 1
+    
+    // Kicking leg
+    const legAngle = physics.angleRad + Math.PI / 6;
+    const legLen = 28 + kickStrength * 8;
+    const legEndX = playerX + Math.cos(legAngle) * legLen;
+    const legEndY = playerY + Math.sin(legAngle) * legLen;
+
+    // Upper leg
+    ctx.strokeStyle = "#ffdbac";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(playerX, playerY + 6);
+    ctx.quadraticCurveTo(playerX + Math.cos(legAngle) * 12, playerY + Math.sin(legAngle) * 12 + 6, legEndX, legEndY);
+    ctx.stroke();
+
+    // Foot
+    ctx.fillStyle = "#2d2d2d";
+    ctx.beginPath();
+    ctx.arc(legEndX, legEndY, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Non-kicking leg (standing)
+    ctx.strokeStyle = "#ffdbac";
+    ctx.beginPath();
+    ctx.moveTo(playerX, playerY + 6);
+    ctx.lineTo(playerX - 8, playerY + 22);
+    ctx.stroke();
+
+    // Arm (balance)
+    ctx.beginPath();
+    ctx.moveTo(playerX - 11, playerY - 2);
+    ctx.lineTo(playerX - 20, playerY - 8);
+    ctx.stroke();
+
+    // Jersey number
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.font = "700 8px Arial";
+    ctx.fillText("10", playerX - 2, playerY + 2);
+
+  } else {
+    // Basketball launcher (unchanged)
+    ctx.fillStyle = "#2a3e58";
+    ctx.beginPath();
+    ctx.roundRect(launcher.x - 44, launcher.y + 12, 88, 66, 16);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffd2a7";
+    ctx.beginPath();
+    ctx.arc(launcher.x - 12, launcher.y - 2, 18, 0, Math.PI * 2);
+    ctx.fill();
+
+    const physics = getPhysicsFromControls();
+    const len = 56;
+    const armX = launcher.x + Math.cos(physics.angleRad) * len;
+    const armY = launcher.y - Math.sin(physics.angleRad) * len;
+    ctx.strokeStyle = "#ffd2a7";
+    ctx.lineWidth = 8;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(launcher.x + 2, launcher.y + 32);
+    ctx.lineTo(armX, armY);
+    ctx.stroke();
+  }
 }
 
 function drawBall() {
