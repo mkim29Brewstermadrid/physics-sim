@@ -166,8 +166,8 @@ const levels = {
       makesPerSpot: 3
     },
     inputMode: "typed",
-    showPreview: false,
-    showLivePath: false,
+    showPreview: true,
+    showLivePath: true,
     challengeSummary: "Tighter targets",
     challenges: [
       "3 makes from Paint",
@@ -1069,11 +1069,11 @@ function drawCourt() {
       }
     }
 
-    // Draw soccer goal frame
+     // Draw soccer goal frame
     const goalX = soccerGoal.x;
     const goalY = soccerGoal.centerY;
-    const goalW = 70;
-    const goalH = 100;
+    const goalW = 100;
+    const goalH = 130;
 
     // Goal posts (vertical lines - white)
     ctx.strokeStyle = "#ffffff";
