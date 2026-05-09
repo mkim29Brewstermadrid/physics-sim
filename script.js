@@ -1051,8 +1051,8 @@ function drawCourt() {
     });
     ctx.setLineDash([]);
 
-    // Wall - only show in medium and hard
-    if (game.level !== "easy") {
+    // Wall - only show in hard mode
+    if (game.level === "hard") {
       ctx.fillStyle = "rgba(120, 120, 120, 0.6)";
       ctx.fillRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
       ctx.strokeStyle = "rgba(80, 80, 80, 0.9)";
