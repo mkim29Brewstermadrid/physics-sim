@@ -1,9 +1,12 @@
 const nameScreen = document.getElementById("nameScreen");
+const sportScreen = document.getElementById("sportScreen");
 const levelScreen = document.getElementById("levelScreen");
 const gameScreen = document.getElementById("gameScreen");
 
 const guestBtn = document.getElementById("guestBtn");
 const authMessage = document.getElementById("authMessage");
+const sportBackBtn = document.getElementById("sportBackBtn");
+const sportOptions = Array.from(document.querySelectorAll("[data-sport]"));
 
 const welcomeName = document.getElementById("welcomeName");
 const levelOptions = Array.from(document.querySelectorAll(".level-option"));
@@ -14,6 +17,7 @@ const challengeSummary = document.getElementById("challengeSummary");
 const challengeList = document.getElementById("challengeList");
 
 const hudName = document.getElementById("hudName");
+const hudTitle = document.getElementById("hudTitle");
 const hudLevel = document.getElementById("hudLevel");
 const lockInfo = document.getElementById("lockInfo");
 const feedbackMessage = document.getElementById("feedbackMessage");
@@ -69,11 +73,21 @@ const floorY = 500;
 const launcher = { x: 130, y: floorY - 110 };
 const rim = { left: 818, right: 874, y: 230 };
 const backboard = { x: 890, y: 150, w: 10, h: 128 };
+
+const soccerGoal = { x: 920, centerY: 280, w: 60, h: 100 };
+const soccerWall = { x: 750, y: 180, w: 8, h: 140, active: true };
+const soccerGoalie = { x: 920, y: 280, r: 16, vx: 0, speed: 120, minY: 220, maxY: 340, t: 0 };
+
 const RIM_NODE_RADIUS = 7;
 const LAUNCH_SPEED_SCALE = 6.6;
 const GRAVITY_PIXEL_SCALE = 34;
 const LAUNCH_MIN_X = 60;
 const LAUNCH_MAX_X = 300;
+const SOCCER_DISTANCE_LINES = [
+  { x: 280, label: "Penalty Mark" },
+  { x: 180, label: "Mid-field" },
+  { x: 80, label: "Center Line" }
+];
 const DISTANCE_LINES = [
   { x: 280, label: "Paint Line" },
   { x: 180, label: "Mid-range Line" },
@@ -104,6 +118,7 @@ const game = {
   userKey: null,
   isGuest: true,
   guestBest: 0,
+  sport: "basketball",
   level: "easy",
   score: 0,
   shots: 0,
@@ -203,6 +218,7 @@ function saveCurrentHighScore(score) {
 
 function showScreen(screen) {
   nameScreen.classList.toggle("hidden", screen !== "name");
+  sportScreen.classList.toggle("hidden", screen !== "sport");
   levelScreen.classList.toggle("hidden", screen !== "level");
   gameScreen.classList.toggle("hidden", screen !== "game");
 }
@@ -345,13 +361,18 @@ function updateStats() {
   bestStat.textContent = String(game.best);
 }
 
+function getCurrentDistanceLines() {
+  return game.sport === "soccer" ? SOCCER_DISTANCE_LINES : DISTANCE_LINES;
+}
+
 function nearestDistanceLabel(x) {
-  let best = DISTANCE_LINES[0];
+  const lines = getCurrentDistanceLines();
+  let best = lines[0];
   let bestDelta = Math.abs(x - best.x);
-  for (let i = 1; i < DISTANCE_LINES.length; i += 1) {
-    const delta = Math.abs(x - DISTANCE_LINES[i].x);
+  for (let i = 1; i < lines.length; i += 1) {
+    const delta = Math.abs(x - lines[i].x);
     if (delta < bestDelta) {
-      best = DISTANCE_LINES[i];
+      best = lines[i];
       bestDelta = delta;
     }
   }
@@ -475,8 +496,15 @@ function applyLevelRules() {
 function updateChallengePanel() {
   const cfg = levels[game.level];
   challengeTitle.textContent = `${cfg.label}`;
-  challengeSummary.textContent = cfg.challengeSummary;
-  challengeList.innerHTML = cfg.challenges.map((item, index) => `${index + 1}. ${item}`).join("<br/>");
+  
+  if (game.sport === "soccer") {
+    challengeSummary.textContent = cfg.challengeSummary + " (Soccer)";
+    const soccerChallenges = cfg.challenges.map(c => c.replace(/makes/i, "goals").replace(/from .*?Line/i, "shot").replace(/Paint|Three-point/i, ""));
+    challengeList.innerHTML = soccerChallenges.map((item, index) => `${index + 1}. ${item}`).join("<br/>");
+  } else {
+    challengeSummary.textContent = cfg.challengeSummary;
+    challengeList.innerHTML = cfg.challenges.map((item, index) => `${index + 1}. ${item}`).join("<br/>");
+  }
 }
 
 function emitConfetti(x, y, count = 70) {
@@ -536,6 +564,7 @@ function startSelectedLevel() {
 
   hudName.textContent = game.playerName;
   hudLevel.textContent = levels[game.level].label;
+  hudTitle.textContent = game.sport === "soccer" ? "Physics Soccer Lab" : "Physics Hoops Lab";
   applyLevelRules();
   updateStats();
   resetBall();
@@ -664,6 +693,61 @@ function resolveFloorBounce() {
   return false;
 }
 
+function resolveSoccerWallCollision() {
+  if (!soccerWall.active) return false;
+  const wallLeft = soccerWall.x;
+  const wallRight = soccerWall.x + soccerWall.w;
+  const wallTop = soccerWall.y;
+  const wallBottom = soccerWall.y + soccerWall.h;
+
+  const verticallyOverlapping = ball.y + ball.r > wallTop && ball.y - ball.r < wallBottom;
+  if (!verticallyOverlapping) return false;
+
+  const hitFront = ball.vx > 0 && ball.x + ball.r >= wallLeft && ball.x - ball.r < wallLeft;
+  if (hitFront) {
+    ball.x = wallLeft - ball.r - 0.2;
+    ball.vx = -Math.abs(ball.vx) * 0.5;
+    ball.vy *= 0.95;
+    return true;
+  }
+  return false;
+}
+
+function resolveSoccerGoalieCollision() {
+  const dx = ball.x - soccerGoalie.x;
+  const dy = ball.y - soccerGoalie.y;
+  const distance = Math.hypot(dx, dy) || 0.0001;
+  const minDistance = ball.r + soccerGoalie.r;
+  
+  if (distance >= minDistance) return false;
+  
+  const nx = dx / distance;
+  const ny = dy / distance;
+  const overlap = minDistance - distance;
+  ball.x += nx * overlap;
+  ball.y += ny * overlap;
+
+  const vn = ball.vx * nx + ball.vy * ny;
+  if (vn < 0) {
+    const tx = -ny;
+    const ty = nx;
+    const vt = ball.vx * tx + ball.vy * ty;
+    const vnAfter = -vn * 0.6;
+    const vtAfter = vt * 0.85;
+    ball.vx = vnAfter * nx + vtAfter * tx;
+    ball.vy = vnAfter * ny + vtAfter * ty;
+  }
+  return true;
+}
+
+function updateSoccerGoalie(dt = 1 / 60) {
+  soccerGoalie.t += dt;
+  const period = 3.0;
+  const phase = (soccerGoalie.t % period) / period;
+  const sine = Math.sin(phase * Math.PI * 2);
+  soccerGoalie.y = soccerGoalie.minY + (soccerGoalie.maxY - soccerGoalie.minY) * (0.5 + 0.5 * sine);
+}
+
 function updateReadout() {
   const controlsPhysics = getPhysicsFromControls();
   const physics = activeShotPhysics || controlsPhysics;
@@ -697,10 +781,19 @@ function updateReadout() {
 }
 
 function getMissFeedback(finalX) {
-  if (ball.scored) return "Swish. Great projectile setup.";
-  if (game.maxHeight > rim.y + 24) return "Arc stayed too low. Increase angle or launch speed.";
-  if (finalX > rim.right + 30) return "Overshot. Reduce power or adjust angle.";
-  return "Close. Adjust angle and compare vx/vy before shooting again.";
+  if (ball.scored) {
+    return game.sport === "soccer" ? "Goal! Excellent shot." : "Swish. Great projectile setup.";
+  }
+  if (game.sport === "soccer") {
+    if (game.maxHeight > (floorY - 200)) return "Shot too low. Increase angle or launch speed.";
+    if (finalX > (soccerGoal.x + 50)) return "Overshot the goal. Reduce power or adjust angle.";
+    if (finalX < (soccerGoal.x - 50)) return "Missed left. Adjust angle and power.";
+    return "Close. Check your trajectory and try again.";
+  } else {
+    if (game.maxHeight > rim.y + 24) return "Arc stayed too low. Increase angle or launch speed.";
+    if (finalX > rim.right + 30) return "Overshot. Reduce power or adjust angle.";
+    return "Close. Adjust angle and compare vx/vy before shooting again.";
+  }
 }
 
 function registerSpotMake() {
@@ -755,46 +848,82 @@ function shoot() {
     if (!ball.flying || !activeShotPhysics) return;
     const dt = 1 / 60;
     physicsStep(ball, activeShotPhysics, dt);
-    const hitBackboard = resolveBackboardCollision();
-    const hitRim = resolveRimCollision();
-    const hitFloor = resolveFloorBounce();
+    
+    let hitObstacle = false;
+    if (game.sport === "soccer") {
+      updateSoccerGoalie(dt);
+      const hitWall = resolveSoccerWallCollision();
+      const hitGoalie = resolveSoccerGoalieCollision();
+      const hitFloor = resolveFloorBounce();
+      hitObstacle = hitWall || hitGoalie || hitFloor;
+      if (hitObstacle && !ball.scored) {
+        feedbackMessage.textContent = hitWall ? "Wall blocked." : hitGoalie ? "Goalie saved!" : "Ground bounce.";
+      }
+    } else {
+      const hitBackboard = resolveBackboardCollision();
+      const hitRim = resolveRimCollision();
+      const hitFloor = resolveFloorBounce();
+      hitObstacle = hitBackboard || hitRim || hitFloor;
+      if (hitObstacle && !ball.scored) {
+        feedbackMessage.textContent = hitBackboard || hitRim ? "Rim contact." : "Floor bounce.";
+      }
+    }
+    
     ball.path.push({ x: ball.x, y: ball.y });
     if (ball.path.length > 420) ball.path.shift();
     game.maxHeight = Math.min(game.maxHeight, ball.y);
     updateReadout();
 
-    if ((hitBackboard || hitRim) && !ball.scored) {
-      feedbackMessage.textContent = "Rim contact.";
-    } else if (hitFloor && !ball.scored) {
-      feedbackMessage.textContent = "Floor bounce.";
+    let scoredThisFrame = false;
+    if (game.sport === "basketball") {
+      const crossedPlane = previousY < rim.y && ball.y >= rim.y && ball.vy > 0;
+      let crossedRim = false;
+      if (crossedPlane) {
+        const dy = ball.y - previousY;
+        const alpha = Math.abs(dy) < 0.0001 ? 1 : (rim.y - previousY) / dy;
+        const xAtPlane = previousX + (ball.x - previousX) * Math.max(0, Math.min(1, alpha));
+        const hoopClearance = ball.r + 1;
+        crossedRim = xAtPlane > rim.left + hoopClearance && xAtPlane < rim.right - hoopClearance;
+      }
+      if (crossedRim && !ball.scored) {
+        scoredThisFrame = true;
+        ball.scored = true;
+        emitConfetti((rim.left + rim.right) / 2, rim.y - 10);
+        game.score += 2;
+      }
+    } else {
+      const goalLeft = soccerGoal.x;
+      const goalRight = soccerGoal.x + soccerGoal.w;
+      const goalTop = soccerGoal.centerY - soccerGoal.h / 2;
+      const goalBottom = soccerGoal.centerY + soccerGoal.h / 2;
+      const crossedGoalLine = previousX < goalLeft && ball.x >= goalLeft && ball.vx > 0;
+      let inGoal = false;
+      if (crossedGoalLine) {
+        const yAtGoal = previousY + (ball.y - previousY) * ((goalLeft - previousX) / (ball.x - previousX + 0.0001));
+        inGoal = yAtGoal > goalTop && yAtGoal < goalBottom && Math.abs(ball.y - yAtGoal) < 8;
+      }
+      if (inGoal && !ball.scored) {
+        scoredThisFrame = true;
+        ball.scored = true;
+        emitConfetti(soccerGoal.x - 10, soccerGoal.centerY);
+        game.score += 1;
+      }
     }
 
-    const crossedPlane = previousY < rim.y && ball.y >= rim.y && ball.vy > 0;
-    let crossedRim = false;
-    if (crossedPlane) {
-      const dy = ball.y - previousY;
-      const alpha = Math.abs(dy) < 0.0001 ? 1 : (rim.y - previousY) / dy;
-      const xAtPlane = previousX + (ball.x - previousX) * Math.max(0, Math.min(1, alpha));
-      const hoopClearance = ball.r + 1;
-      crossedRim = xAtPlane > rim.left + hoopClearance && xAtPlane < rim.right - hoopClearance;
-    }
-
-    if (crossedRim && !ball.scored) {
-      ball.scored = true;
-      emitConfetti((rim.left + rim.right) / 2, rim.y - 10);
-      game.score += 2;
+    if (scoredThisFrame) {
       game.streak += 1;
       const spotProgress = registerSpotMake();
       if (game.score > game.best) {
         game.best = game.score;
         saveCurrentHighScore(game.best);
       }
+      const goalMsg = game.sport === "soccer" ? "Goal!" : "Bucket!";
       if (spotProgress.newlyCompleted && spotProgress.allDone) {
-        feedbackMessage.textContent = "Bucket! Challenge done.";
+        feedbackMessage.textContent = `${goalMsg} Challenge done.`;
       } else if (spotProgress.newlyCompleted) {
-        feedbackMessage.textContent = `Bucket! ${spotProgress.current}/${spotProgress.required} here.`;
+        feedbackMessage.textContent = `${goalMsg} ${spotProgress.current}/${spotProgress.required} here.`;
       } else {
-        feedbackMessage.textContent = "Bucket!";
+        feedbackMessage.textContent = goalMsg;
       }
       updateStats();
       ball.flying = false;
@@ -852,8 +981,13 @@ function shoot() {
 
 function drawCourt() {
   const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  bg.addColorStop(0, "#102237");
-  bg.addColorStop(1, "#0d1a2a");
+  if (game.sport === "soccer") {
+    bg.addColorStop(0, "#1a4d2e");
+    bg.addColorStop(1, "#0d2818");
+  } else {
+    bg.addColorStop(0, "#102237");
+    bg.addColorStop(1, "#0d1a2a");
+  }
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -861,57 +995,109 @@ function drawCourt() {
   for (let i = 0; i < canvas.width; i += 56) ctx.fillRect(i, 0, 1, canvas.height);
   for (let j = 0; j < canvas.height; j += 56) ctx.fillRect(0, j, canvas.width, 1);
 
-  const floor = ctx.createLinearGradient(0, floorY - 36, 0, canvas.height);
-  floor.addColorStop(0, "#6f4f2f");
-  floor.addColorStop(1, "#583c25");
-  ctx.fillStyle = floor;
-  ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+  if (game.sport === "soccer") {
+    const floor = ctx.createLinearGradient(0, floorY - 36, 0, canvas.height);
+    floor.addColorStop(0, "#2d6b4f");
+    floor.addColorStop(1, "#1a3f2f");
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
 
-  ctx.strokeStyle = "rgba(255,238,219,0.38)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, floorY);
-  ctx.lineTo(canvas.width, floorY);
-  ctx.stroke();
-
-  ctx.setLineDash([8, 8]);
-  ctx.lineWidth = 1.2;
-  ctx.font = "700 12px Inter, sans-serif";
-  DISTANCE_LINES.forEach((line) => {
-    ctx.strokeStyle = "rgba(185, 221, 255, 0.45)";
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(line.x, floorY - 170);
-    ctx.lineTo(line.x, floorY);
+    ctx.moveTo(0, floorY);
+    ctx.lineTo(canvas.width, floorY);
     ctx.stroke();
-    ctx.fillStyle = "rgba(208, 232, 255, 0.86)";
-    ctx.fillText(line.label, line.x + 8, floorY - 144);
-  });
-  ctx.setLineDash([]);
 
-  ctx.fillStyle = "#f4ede7";
-  ctx.fillRect(backboard.x, backboard.y, backboard.w, backboard.h);
+    ctx.setLineDash([8, 8]);
+    ctx.lineWidth = 1.2;
+    ctx.font = "700 12px Inter, sans-serif";
+    SOCCER_DISTANCE_LINES.forEach((line) => {
+      ctx.strokeStyle = "rgba(200, 255, 200, 0.45)";
+      ctx.beginPath();
+      ctx.moveTo(line.x, floorY - 170);
+      ctx.lineTo(line.x, floorY);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(220, 255, 220, 0.86)";
+      ctx.fillText(line.label, line.x + 8, floorY - 144);
+    });
+    ctx.setLineDash([]);
 
-  ctx.strokeStyle = "#ff6f47";
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(rim.left, rim.y);
-  ctx.lineTo(rim.right, rim.y);
-  ctx.stroke();
+    ctx.fillStyle = "rgba(200, 100, 100, 0.3)";
+    ctx.fillRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
+    ctx.strokeStyle = "rgba(255, 80, 80, 0.7)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
 
-  ctx.fillStyle = "#ff6f47";
-  ctx.beginPath();
-  ctx.arc(rim.left, rim.y, RIM_NODE_RADIUS, 0, Math.PI * 2);
-  ctx.arc(rim.right, rim.y, RIM_NODE_RADIUS, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = "rgba(255,255,255,0.6)";
-  ctx.lineWidth = 1.4;
-  for (let i = 0; i < 6; i += 1) {
-    const x = rim.left + ((rim.right - rim.left) * i) / 5;
+    ctx.strokeStyle = "rgba(200, 200, 200, 0.6)";
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(x, rim.y + 2);
-    ctx.lineTo(x + 6, rim.y + 54);
+    ctx.moveTo(soccerGoal.x, soccerGoal.centerY - soccerGoal.h / 2);
+    ctx.lineTo(soccerGoal.x, soccerGoal.centerY + soccerGoal.h / 2);
     ctx.stroke();
+    ctx.fillStyle = "rgba(200, 200, 200, 0.15)";
+    ctx.fillRect(soccerGoal.x - 8, soccerGoal.centerY - soccerGoal.h / 2, 20, soccerGoal.h);
+
+    ctx.fillStyle = "rgba(255, 150, 150, 0.8)";
+    ctx.beginPath();
+    ctx.arc(soccerGoalie.x, soccerGoalie.y, soccerGoalie.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(100, 50, 50, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else {
+    const floor = ctx.createLinearGradient(0, floorY - 36, 0, canvas.height);
+    floor.addColorStop(0, "#6f4f2f");
+    floor.addColorStop(1, "#583c25");
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+
+    ctx.strokeStyle = "rgba(255,238,219,0.38)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, floorY);
+    ctx.lineTo(canvas.width, floorY);
+    ctx.stroke();
+
+    ctx.setLineDash([8, 8]);
+    ctx.lineWidth = 1.2;
+    ctx.font = "700 12px Inter, sans-serif";
+    DISTANCE_LINES.forEach((line) => {
+      ctx.strokeStyle = "rgba(185, 221, 255, 0.45)";
+      ctx.beginPath();
+      ctx.moveTo(line.x, floorY - 170);
+      ctx.lineTo(line.x, floorY);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(208, 232, 255, 0.86)";
+      ctx.fillText(line.label, line.x + 8, floorY - 144);
+    });
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "#f4ede7";
+    ctx.fillRect(backboard.x, backboard.y, backboard.w, backboard.h);
+
+    ctx.strokeStyle = "#ff6f47";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(rim.left, rim.y);
+    ctx.lineTo(rim.right, rim.y);
+    ctx.stroke();
+
+    ctx.fillStyle = "#ff6f47";
+    ctx.beginPath();
+    ctx.arc(rim.left, rim.y, RIM_NODE_RADIUS, 0, Math.PI * 2);
+    ctx.arc(rim.right, rim.y, RIM_NODE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 1.4;
+    for (let i = 0; i < 6; i += 1) {
+      const x = rim.left + ((rim.right - rim.left) * i) / 5;
+      ctx.beginPath();
+      ctx.moveTo(x, rim.y + 2);
+      ctx.lineTo(x + 6, rim.y + 54);
+      ctx.stroke();
+    }
   }
 }
 
@@ -987,18 +1173,39 @@ function drawLauncher() {
 function drawBall() {
   ctx.save();
   ctx.translate(ball.x, ball.y);
-  ctx.fillStyle = "#f89237";
-  ctx.beginPath();
-  ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#6a320b";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(0, 0, ball.r - 2, 0.2, Math.PI - 0.2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, 0, ball.r - 2, Math.PI + 0.2, Math.PI * 2 - 0.2);
-  ctx.stroke();
+  
+  if (game.sport === "soccer") {
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * 4, Math.sin(angle) * 4, 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = "#f89237";
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#6a320b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.r - 2, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.r - 2, Math.PI + 0.2, Math.PI * 2 - 0.2);
+    ctx.stroke();
+  }
+  
   ctx.restore();
 }
 
@@ -1138,8 +1345,20 @@ function showLandingWelcome() {
 
 guestBtn.addEventListener("click", () => {
   setGuestUser();
-  showAuthMessage("Continuing as guest. Scores will stay only for this session.");
-  showScreen("level");
+  showAuthMessage("Choose your sport.");
+  showScreen("sport");
+});
+
+sportOptions.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    game.sport = btn.dataset.sport;
+    sportOptions.forEach((b) => b.classList.toggle("selected", b.dataset.sport === game.sport));
+    showScreen("level");
+  });
+});
+
+sportBackBtn.addEventListener("click", () => {
+  showScreen("name");
 });
 
 levelOptions.forEach((btn) => {
@@ -1154,8 +1373,7 @@ changeNameBtn.addEventListener("click", () => {
   hideShotNotice();
   hideShotReview();
   setGuestUser();
-  showLandingWelcome();
-  showScreen("name");
+  showScreen("sport");
 });
 
 shootBtn.addEventListener("click", shoot);

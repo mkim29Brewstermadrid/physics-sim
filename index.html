@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Physics Hoops Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -14,11 +17,38 @@
         <p class="badge">Physics Simulation Platform</p>
         <h1 class="hero-title">Physics Hoops Lab</h1>
         <p class="hero-subtitle">Explore projectile motion, vectors, gravity, and real-world basketball physics.</p>
+        <p class="hero-welcome">Welcome to your shot lab. Dial in your launch, read the physics live, and own the perfect arc.</p>
+        <div class="hero-pill-row" aria-hidden="true">
+          <span class="hero-pill">Player Mode</span>
+          <span class="hero-pill">Live Flight Data</span>
+          <span class="hero-pill">Challenge Levels</span>
+        </div>
         <div class="hero-actions">
           <button id="guestBtn" class="btn btn-primary">Continue as Guest</button>
         </div>
         <p class="auth-footnote">Guest mode: scores are kept for this session.</p>
         <p id="authMessage" class="message"></p>
+      </div>
+    </section>
+
+    <section id="sportScreen" class="screen hidden auth-screen">
+      <div class="auth-backdrop"></div>
+      <div class="card auth-card">
+        <h2 class="hero-title">Choose Your Sport</h2>
+        <p class="hero-subtitle">Pick a discipline and master the physics.</p>
+        <div class="sport-grid" style="margin-top: 1.4rem;">
+          <button class="sport-option selected" data-sport="basketball">
+            <strong>Basketball</strong>
+            <span>Arc to the rim</span>
+          </button>
+          <button class="sport-option" data-sport="soccer">
+            <strong>Soccer</strong>
+            <span>Bend it into goal</span>
+          </button>
+        </div>
+        <div class="level-actions" style="margin-top: 1.2rem;">
+          <button id="sportBackBtn" class="btn btn-secondary">Back</button>
+        </div>
       </div>
     </section>
 
@@ -52,7 +82,7 @@
     <section id="gameScreen" class="screen hidden">
       <header class="card topbar">
         <div>
-          <h2>Physics Hoops Lab</h2>
+          <h2 id="hudTitle">Physics Hoops Lab</h2>
           <p><strong id="hudName"></strong> · <span id="hudLevel"></span></p>
         </div>
         <p id="lockInfo" class="lock-info"></p>
