@@ -25,21 +25,23 @@
     <section id="levelScreen" class="screen hidden">
       <div class="card level-card">
         <h2>Welcome, <span id="welcomeName"></span></h2>
-        <p class="sub">Choose a vacuum-mode challenge and master ideal projectile motion.</p>
+        <p class="sub">Pick a level.</p>
         <div class="level-grid">
           <button class="level-option selected" data-level="easy">
             <strong>Easy</strong>
-            <span>No wind. Learn pure vx, vy, and gravity kinematics.</span>
           </button>
           <button class="level-option" data-level="medium">
             <strong>Medium</strong>
-            <span>Fixed crosswind + narrower angle/power ranges.</span>
           </button>
           <button class="level-option" data-level="hard">
             <strong>Hard</strong>
-            <span>Strong crosswind + tight angle/power windows with bigger slider jumps.</span>
           </button>
         </div>
+        <section class="readout level-challenge-box">
+          <h3 id="challengeTitle">Challenge</h3>
+          <p id="challengeSummary" class="coord-note"></p>
+          <div id="challengeList" class="challenge-list"></div>
+        </section>
         <div class="level-actions">
           <button id="startGameBtn" class="btn btn-primary">Start Simulation</button>
           <button id="changeNameBtn" class="btn btn-secondary">Switch User</button>
@@ -76,11 +78,6 @@
             </div>
           </section>
 
-          <section id="graphPanel" class="readout graph-panel hidden">
-            <h3>Shot Graph</h3>
-            <p id="graphMeta" class="coord-note">Trajectory graph of x-y motion during shot.</p>
-            <canvas id="graphCanvas" width="640" height="280" aria-label="Shot graph"></canvas>
-          </section>
         </section>
 
         <aside class="card panel">
@@ -113,17 +110,11 @@
 
           <div id="spotRow" class="spot-row hidden">
             <p id="spotInfo" class="sub">Spot challenge</p>
-            <button id="nextSpotBtn" class="btn btn-secondary">Switch Spot</button>
           </div>
 
           <div class="preview-row">
             <input id="previewToggle" type="checkbox" checked />
             <label for="previewToggle">Show trajectory line guide</label>
-          </div>
-
-          <div class="preview-row">
-            <input id="graphToggle" type="checkbox" checked />
-            <label for="graphToggle">Show shot graph</label>
           </div>
 
           <div class="decomposition-row">
@@ -141,12 +132,25 @@
         </aside>
       </div>
 
+      <div id="shotReview" class="shot-review hidden">
+        <div class="card shot-review-card">
+          <div class="shot-review-head">
+            <h3>Shot Graph</h3>
+            <p id="shotGraphMeta" class="sub">x = distance, y = height.</p>
+          </div>
+          <canvas id="shotGraphCanvas" width="980" height="290" aria-label="Shot trajectory graph"></canvas>
+          <div class="shot-review-actions">
+            <button id="reviewTryAgainBtn" class="btn btn-primary">Try Again</button>
+          </div>
+        </div>
+      </div>
+
       <div id="shotNotice" class="shot-notice hidden">
         <div class="card shot-notice-card">
           <h3 id="shotNoticeTitle">Shot Result</h3>
           <p id="shotNoticeMessage" class="sub">Result text</p>
           <div class="shot-notice-actions">
-            <button id="viewCalcBtn" class="btn btn-secondary">See calculations + graph</button>
+            <button id="nextChallengeBtn" class="btn btn-secondary hidden">Try Next Challenge</button>
             <button id="tryAgainBtn" class="btn btn-primary">Try Again</button>
           </div>
         </div>

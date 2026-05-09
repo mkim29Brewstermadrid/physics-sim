@@ -9,6 +9,9 @@ const welcomeName = document.getElementById("welcomeName");
 const levelOptions = Array.from(document.querySelectorAll(".level-option"));
 const startGameBtn = document.getElementById("startGameBtn");
 const changeNameBtn = document.getElementById("changeNameBtn");
+const challengeTitle = document.getElementById("challengeTitle");
+const challengeSummary = document.getElementById("challengeSummary");
+const challengeList = document.getElementById("challengeList");
 
 const hudName = document.getElementById("hudName");
 const hudLevel = document.getElementById("hudLevel");
@@ -25,11 +28,9 @@ const powerInput = document.getElementById("powerInput");
 const gravityInput = document.getElementById("gravityInput");
 const distanceInput = document.getElementById("distanceInput");
 const previewToggle = document.getElementById("previewToggle");
-const graphToggle = document.getElementById("graphToggle");
 const distanceValue = document.getElementById("distanceValue");
 const spotRow = document.getElementById("spotRow");
 const spotInfo = document.getElementById("spotInfo");
-const nextSpotBtn = document.getElementById("nextSpotBtn");
 
 const angleValue = document.getElementById("angleValue");
 const powerValue = document.getElementById("powerValue");
@@ -51,14 +52,15 @@ const shootBtn = document.getElementById("shootBtn");
 const resetBtn = document.getElementById("resetBtn");
 const backBtn = document.getElementById("backBtn");
 const tryAgainBtn = document.getElementById("tryAgainBtn");
-const viewCalcBtn = document.getElementById("viewCalcBtn");
+const reviewTryAgainBtn = document.getElementById("reviewTryAgainBtn");
 const shotNotice = document.getElementById("shotNotice");
 const shotNoticeTitle = document.getElementById("shotNoticeTitle");
 const shotNoticeMessage = document.getElementById("shotNoticeMessage");
-const graphPanel = document.getElementById("graphPanel");
-const graphMeta = document.getElementById("graphMeta");
-const graphCanvas = document.getElementById("graphCanvas");
-const graphCtx = graphCanvas.getContext("2d");
+const nextChallengeBtn = document.getElementById("nextChallengeBtn");
+const shotReview = document.getElementById("shotReview");
+const shotGraphMeta = document.getElementById("shotGraphMeta");
+const shotGraphCanvas = document.getElementById("shotGraphCanvas");
+const shotGraphCtx = shotGraphCanvas.getContext("2d");
 
 const canvas = document.getElementById("courtCanvas");
 const ctx = canvas.getContext("2d");
@@ -70,6 +72,8 @@ const backboard = { x: 890, y: 150, w: 10, h: 128 };
 const RIM_NODE_RADIUS = 7;
 const LAUNCH_SPEED_SCALE = 6.6;
 const GRAVITY_PIXEL_SCALE = 34;
+const LAUNCH_MIN_X = 60;
+const LAUNCH_MAX_X = 300;
 const DISTANCE_LINES = [
   { x: 280, label: "Paint Line" },
   { x: 180, label: "Mid-range Line" },
@@ -91,7 +95,8 @@ const ball = {
   path: [],
   r: 12,
   flying: false,
-  scored: false
+  scored: false,
+  floorBounces: 0
 };
 
 const game = {
@@ -111,14 +116,24 @@ const game = {
 };
 
 let activeShotPhysics = null;
+const dragState = { active: false, pointerId: null };
+const LEVEL_ORDER = ["easy", "medium", "hard"];
+const confettiPieces = [];
 
 const levels = {
   easy: {
-    label: "Easy · Ideal Projectile",
-    text: "Make 2 shots from the mid-range line.",
+    label: "Easy",
+    text: "Basics",
     distanceMode: { type: "spots", spots: [180], labels: ["Mid-range Line"], makesPerSpot: 2 },
     inputMode: "slider",
     showPreview: true,
+    showLivePath: true,
+    challengeSummary: "Starter",
+    challenges: [
+      "2 makes from Mid-range",
+      "Try 2 angle values",
+      "Try 2 power values"
+    ],
     sliderRules: {
       angle: { min: 20, max: 85, step: 1, value: 52 },
       power: { min: 30, max: 92, step: 1, value: 58 },
@@ -127,16 +142,23 @@ const levels = {
     forgiveness: 16
   },
   medium: {
-    label: "Medium · Guided Vacuum",
-    text: "Make 2 shots from two lines with typed values.",
+    label: "Medium",
+    text: "Precision",
     distanceMode: {
       type: "spots",
       spots: [280, 80],
       labels: ["Paint Line", "Three-point Line"],
-      makesPerSpot: 2
+      makesPerSpot: 3
     },
     inputMode: "typed",
     showPreview: true,
+    showLivePath: true,
+    challengeSummary: "Tighter targets",
+    challenges: [
+      "3 makes from Paint",
+      "3 makes from Three-point",
+      "Use high and low angles"
+    ],
     sliderRules: {
       angle: { min: 40, max: 64, step: 2, value: 52 },
       power: { min: 44, max: 80, step: 4, value: 64 },
@@ -145,16 +167,23 @@ const levels = {
     forgiveness: 10
   },
   hard: {
-    label: "Hard · Vacuum Challenge",
-    text: "Make 2 shots from all lines with typed values and no trajectory guide.",
+    label: "Hard",
+    text: "No live path",
     distanceMode: {
       type: "spots",
       spots: [280, 180, 80],
       labels: ["Paint Line", "Mid-range Line", "Three-point Line"],
-      makesPerSpot: 2
+      makesPerSpot: 3
     },
     inputMode: "typed",
     showPreview: false,
+    showLivePath: false,
+    challengeSummary: "Final test",
+    challenges: [
+      "3 makes from each line (9 total)",
+      "No guide, no live path",
+      "Change gravity and still finish"
+    ],
     sliderRules: {
       angle: { min: 38, max: 72, step: 1, value: 54 },
       power: { min: 46, max: 84, step: 2, value: 68 },
@@ -180,6 +209,7 @@ function showScreen(screen) {
 
 function hideShotNotice() {
   shotNotice.classList.add("hidden");
+  nextChallengeBtn.classList.add("hidden");
 }
 
 function showShotNotice(title, message) {
@@ -188,68 +218,103 @@ function showShotNotice(title, message) {
   shotNotice.classList.remove("hidden");
 }
 
-function updateGraphVisibility() {
-  graphPanel.classList.toggle("hidden", !graphToggle.checked);
+function hideShotReview() {
+  shotReview.classList.add("hidden");
 }
 
 function drawShotGraph() {
-  if (!graphToggle.checked || ball.path.length < 2) {
-    graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
-    graphMeta.textContent = "Toggle graph on and shoot to see x-y trajectory.";
+  shotGraphCtx.clearRect(0, 0, shotGraphCanvas.width, shotGraphCanvas.height);
+  shotGraphCtx.fillStyle = "rgba(7, 23, 38, 0.9)";
+  shotGraphCtx.fillRect(0, 0, shotGraphCanvas.width, shotGraphCanvas.height);
+  if (ball.path.length < 2) {
+    shotGraphMeta.textContent = "Take a shot to generate a trajectory graph.";
     return;
   }
 
-  const pts = ball.path;
-  const xMin = Math.min(...pts.map((d) => d.x)) - 18;
-  const xMax = Math.max(...pts.map((d) => d.x)) + 18;
-  const yMin = Math.min(...pts.map((d) => d.y)) - 18;
-  const yMax = Math.max(...pts.map((d) => d.y)) + 18;
+  const plotPoints = ball.path.map((pt) => ({
+    x: pt.x - ball.x0,
+    y: ball.y0 - pt.y
+  }));
+  const xMin = 0;
+  const xMax = Math.max(1, ...plotPoints.map((d) => d.x));
+  const yMin = Math.min(0, ...plotPoints.map((d) => d.y));
+  const yMax = Math.max(1, ...plotPoints.map((d) => d.y));
 
-  graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
-  graphCtx.fillStyle = "rgba(8, 24, 40, 0.15)";
-  graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
-
-  const pad = 26;
-  const w = graphCanvas.width - pad * 2;
-  const h = graphCanvas.height - pad * 2;
+  const pad = 48;
+  const w = shotGraphCanvas.width - pad * 2;
+  const h = shotGraphCanvas.height - pad * 1.5;
   const tx = (x) => pad + ((x - xMin) / Math.max(1, xMax - xMin)) * w;
-  const ty = (y) => pad + ((yMax - y) / Math.max(1, yMax - yMin)) * h;
+  const ty = (y) => pad + h - ((y - yMin) / Math.max(1, yMax - yMin)) * h;
 
-  graphCtx.strokeStyle = "rgba(180, 220, 255, 0.25)";
-  graphCtx.lineWidth = 1;
-  for (let i = 0; i <= 10; i += 1) {
-    const gx = pad + (w * i) / 10;
-    graphCtx.beginPath();
-    graphCtx.moveTo(gx, pad);
-    graphCtx.lineTo(gx, pad + h);
-    graphCtx.stroke();
+  shotGraphCtx.strokeStyle = "rgba(180, 220, 255, 0.24)";
+  shotGraphCtx.lineWidth = 1;
+  for (let i = 0; i <= 3; i += 1) {
+    const gx = pad + (w * i) / 3;
+    shotGraphCtx.beginPath();
+    shotGraphCtx.moveTo(gx, pad);
+    shotGraphCtx.lineTo(gx, pad + h);
+    shotGraphCtx.stroke();
   }
-  for (let i = 0; i <= 6; i += 1) {
-    const gy = pad + (h * i) / 6;
-    graphCtx.beginPath();
-    graphCtx.moveTo(pad, gy);
-    graphCtx.lineTo(pad + w, gy);
-    graphCtx.stroke();
+  for (let i = 0; i <= 2; i += 1) {
+    const gy = pad + (h * i) / 2;
+    shotGraphCtx.beginPath();
+    shotGraphCtx.moveTo(pad, gy);
+    shotGraphCtx.lineTo(pad + w, gy);
+    shotGraphCtx.stroke();
   }
 
-  graphCtx.strokeStyle = "rgba(125, 234, 203, 0.96)";
-  graphCtx.lineWidth = 2.2;
-  graphCtx.beginPath();
-  graphCtx.moveTo(tx(pts[0].x), ty(pts[0].y));
-  for (let i = 1; i < pts.length; i += 1) graphCtx.lineTo(tx(pts[i].x), ty(pts[i].y));
-  graphCtx.stroke();
+  shotGraphCtx.strokeStyle = "rgba(125, 234, 203, 0.98)";
+  shotGraphCtx.lineWidth = 2.6;
+  shotGraphCtx.beginPath();
+  shotGraphCtx.moveTo(tx(plotPoints[0].x), ty(plotPoints[0].y));
+  for (let i = 1; i < plotPoints.length; i += 1) shotGraphCtx.lineTo(tx(plotPoints[i].x), ty(plotPoints[i].y));
+  shotGraphCtx.stroke();
 
-  graphCtx.fillStyle = "rgba(234, 248, 255, 0.92)";
-  graphCtx.font = "600 12px Inter, sans-serif";
-  graphCtx.fillText("x distance", graphCanvas.width - 86, graphCanvas.height - 8);
-  graphCtx.save();
-  graphCtx.translate(10, 68);
-  graphCtx.rotate(-Math.PI / 2);
-  graphCtx.fillText("y height", 0, 0);
-  graphCtx.restore();
+  const markerIdx = new Set([
+    0,
+    Math.floor(plotPoints.length * 0.25),
+    Math.floor(plotPoints.length * 0.5),
+    Math.floor(plotPoints.length * 0.75),
+    plotPoints.length - 1
+  ]);
+  let apexIndex = 0;
+  for (let i = 1; i < plotPoints.length; i += 1) {
+    if (plotPoints[i].y > plotPoints[apexIndex].y) apexIndex = i;
+  }
+  markerIdx.add(apexIndex);
+
+  shotGraphCtx.fillStyle = "#9ee9ff";
+  shotGraphCtx.strokeStyle = "rgba(7, 23, 38, 0.9)";
+  shotGraphCtx.lineWidth = 1.5;
+  shotGraphCtx.font = "600 11px Inter, sans-serif";
+  for (const idx of markerIdx) {
+    const p = plotPoints[idx];
+    const px = tx(p.x);
+    const py = ty(p.y);
+    shotGraphCtx.beginPath();
+    shotGraphCtx.arc(px, py, 4, 0, Math.PI * 2);
+    shotGraphCtx.fill();
+    shotGraphCtx.stroke();
+    shotGraphCtx.fillText(`(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`, px + 6, py - 6);
+  }
+
+  shotGraphCtx.fillStyle = "rgba(234, 248, 255, 0.94)";
+  shotGraphCtx.font = "700 12px Inter, sans-serif";
+  shotGraphCtx.fillText("x: forward distance from launch (px)", pad, shotGraphCanvas.height - 12);
+  shotGraphCtx.save();
+  shotGraphCtx.translate(18, pad + h);
+  shotGraphCtx.rotate(-Math.PI / 2);
+  shotGraphCtx.fillText("y: height above launch (px)", 0, 0);
+  shotGraphCtx.restore();
 
   const p = activeShotPhysics || getPhysicsFromControls();
-  graphMeta.textContent = `vx=${p.vx0.toFixed(1)}, vy=${p.vy0.toFixed(1)}, g=${(p.gravity * GRAVITY_PIXEL_SCALE).toFixed(1)} | points=${pts.length}`;
+  shotGraphMeta.textContent =
+    `angle ${p.angleDeg.toFixed(0)}° · power ${p.power.toFixed(0)} · gravity ${p.gravity.toFixed(1)}`;
+}
+
+function showShotReview() {
+  drawShotGraph();
+  shotReview.classList.remove("hidden");
 }
 
 function resetBall() {
@@ -267,6 +332,7 @@ function resetBall() {
   ball.path = [];
   ball.flying = false;
   ball.scored = false;
+  ball.floorBounces = 0;
   activeShotPhysics = null;
   game.maxHeight = ball.y;
   game.shotResolved = false;
@@ -289,17 +355,37 @@ function nearestDistanceLabel(x) {
       bestDelta = delta;
     }
   }
-  return best.label;
+  const offset = Math.round(x - best.x);
+  const offsetText = offset === 0 ? "on line" : offset > 0 ? `+${offset}px right` : `${offset}px left`;
+  return `${best.label} (${offsetText})`;
 }
 
 function setLauncherX(x, reset = true) {
-  launcher.x = x;
-  distanceInput.value = String(Math.round(x));
-  distanceValue.textContent = nearestDistanceLabel(x);
+  launcher.x = Math.max(LAUNCH_MIN_X, Math.min(LAUNCH_MAX_X, x));
+  distanceInput.value = String(Math.round(launcher.x));
+  distanceValue.textContent = nearestDistanceLabel(launcher.x);
   if (reset && !ball.flying) {
     resetBall();
     updateReadout();
   }
+}
+
+function setCurrentSpotByX(x, reset = true) {
+  const cfg = levels[game.level];
+  if (cfg.distanceMode.type !== "spots") return;
+  let nextIndex = 0;
+  let bestDelta = Math.abs(x - cfg.distanceMode.spots[0]);
+  for (let i = 1; i < cfg.distanceMode.spots.length; i += 1) {
+    const delta = Math.abs(x - cfg.distanceMode.spots[i]);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      nextIndex = i;
+    }
+  }
+  if (nextIndex === game.currentSpotIndex && Math.abs(launcher.x - x) < 0.5) return;
+  game.currentSpotIndex = nextIndex;
+  setLauncherX(x, reset);
+  updateSpotInfo();
 }
 
 function updateSpotInfo() {
@@ -311,7 +397,7 @@ function updateSpotInfo() {
   const current = game.spotMakes[game.currentSpotIndex] ?? 0;
   const doneCount = game.spotMakes.reduce((sum, v) => sum + Math.min(v, required), 0);
   const targetCount = total * required;
-  spotInfo.textContent = `Spot ${game.currentSpotIndex + 1}/${total}: ${label} · ${current}/${required} here · Total ${doneCount}/${targetCount}`;
+  spotInfo.textContent = `${label}: ${current}/${required} · Total ${doneCount}/${targetCount}`;
 }
 
 function applyDistanceMode(cfg) {
@@ -319,12 +405,11 @@ function applyDistanceMode(cfg) {
   game.spotMakes = new Array(mode.spots.length).fill(0);
   game.currentSpotIndex = 0;
 
-  distanceInput.min = String(Math.min(...mode.spots));
-  distanceInput.max = String(Math.max(...mode.spots));
+  distanceInput.min = String(LAUNCH_MIN_X);
+  distanceInput.max = String(LAUNCH_MAX_X);
   distanceInput.step = "1";
-  distanceInput.disabled = true;
+  distanceInput.disabled = false;
   spotRow.classList.remove("hidden");
-  nextSpotBtn.classList.toggle("hidden", mode.spots.length <= 1);
   setLauncherX(mode.spots[game.currentSpotIndex], false);
   updateSpotInfo();
 }
@@ -383,14 +468,81 @@ function applyLevelRules() {
   if (previewRow) previewRow.classList.toggle("hidden", !cfg.showPreview);
 
   lockInfo.textContent = cfg.text;
-  updateGraphVisibility();
   updateLabels();
   updateReadout();
+}
+
+function updateChallengePanel() {
+  const cfg = levels[game.level];
+  challengeTitle.textContent = `${cfg.label}`;
+  challengeSummary.textContent = cfg.challengeSummary;
+  challengeList.innerHTML = cfg.challenges.map((item, index) => `${index + 1}. ${item}`).join("<br/>");
+}
+
+function emitConfetti(x, y, count = 70) {
+  const palette = ["#8cffd5", "#67c1ff", "#ffd07f", "#ff9ec7", "#d5b3ff"];
+  for (let i = 0; i < count; i += 1) {
+    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+    const speed = 80 + Math.random() * 180;
+    confettiPieces.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 40,
+      life: 0.9 + Math.random() * 0.7,
+      size: 2 + Math.random() * 3,
+      color: palette[Math.floor(Math.random() * palette.length)]
+    });
+  }
+}
+
+function updateAndDrawConfetti(dt = 1 / 60) {
+  if (confettiPieces.length === 0) return;
+  for (let i = confettiPieces.length - 1; i >= 0; i -= 1) {
+    const p = confettiPieces[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      confettiPieces.splice(i, 1);
+      continue;
+    }
+    p.vy += 220 * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function setLevel(level) {
   game.level = level;
   levelOptions.forEach((btn) => btn.classList.toggle("selected", btn.dataset.level === level));
+  updateChallengePanel();
+}
+
+function getNextLevel(level) {
+  const idx = LEVEL_ORDER.indexOf(level);
+  if (idx === -1 || idx >= LEVEL_ORDER.length - 1) return null;
+  return LEVEL_ORDER[idx + 1];
+}
+
+function startSelectedLevel() {
+  game.score = 0;
+  game.shots = 0;
+  game.streak = 0;
+  game.best = getCurrentHighScore();
+  game.shotResolved = false;
+
+  hudName.textContent = game.playerName;
+  hudLevel.textContent = levels[game.level].label;
+  applyLevelRules();
+  updateStats();
+  resetBall();
+  hideShotNotice();
+  hideShotReview();
+  feedbackMessage.textContent = "Set values and shoot.";
+  showScreen("game");
 }
 
 function getPhysicsFromControls() {
@@ -494,6 +646,24 @@ function resolveRimCollision() {
   return hit;
 }
 
+function resolveFloorBounce() {
+  const floorTop = floorY - ball.r;
+  if (ball.y < floorTop) return false;
+  ball.y = floorTop;
+
+  if (ball.vy > 0) {
+    ball.floorBounces += 1;
+    ball.vy = -ball.vy * 0.33;
+    ball.vx *= 0.86;
+    if (Math.abs(ball.vy) < 48) ball.vy = 0;
+    return true;
+  }
+
+  if (Math.abs(ball.vy) <= 5) ball.vy = 0;
+  ball.vx *= 0.985;
+  return false;
+}
+
 function updateReadout() {
   const controlsPhysics = getPhysicsFromControls();
   const physics = activeShotPhysics || controlsPhysics;
@@ -523,7 +693,7 @@ function updateReadout() {
     `${y0.toFixed(1)} + (${physics.vy0.toFixed(1)})(${t.toFixed(2)}) + 0.5(${(physics.gravity * GRAVITY_PIXEL_SCALE).toFixed(1)})(${(t * t).toFixed(2)}) = ${yIdeal.toFixed(1)}`;
 
   coordNote.textContent =
-    "Vacuum mode only: horizontal acceleration is zero and vertical acceleration is gravity. Upward launch starts with negative vy in canvas coordinates.";
+    "More power = farther. More angle = higher arc. More gravity = quicker drop.";
 }
 
 function getMissFeedback(finalX) {
@@ -556,6 +726,7 @@ function registerSpotMake() {
 function shoot() {
   if (ball.flying || game.shotResolved) return;
   clampNumericInputs();
+  hideShotReview();
 
   const physics = getPhysicsFromControls();
   activeShotPhysics = { ...physics };
@@ -575,7 +746,7 @@ function shoot() {
   game.shots += 1;
   game.maxHeight = ball.y;
   updateStats();
-  feedbackMessage.textContent = "Shot launched. Watch vx, vy, and g vectors in flight.";
+  feedbackMessage.textContent = "Shot launched.";
 
   let previousY = ball.y;
   let previousX = ball.x;
@@ -586,13 +757,16 @@ function shoot() {
     physicsStep(ball, activeShotPhysics, dt);
     const hitBackboard = resolveBackboardCollision();
     const hitRim = resolveRimCollision();
+    const hitFloor = resolveFloorBounce();
     ball.path.push({ x: ball.x, y: ball.y });
     if (ball.path.length > 420) ball.path.shift();
     game.maxHeight = Math.min(game.maxHeight, ball.y);
     updateReadout();
 
     if ((hitBackboard || hitRim) && !ball.scored) {
-      feedbackMessage.textContent = "Rim/backboard contact: tune angle and power for a clean make.";
+      feedbackMessage.textContent = "Rim contact.";
+    } else if (hitFloor && !ball.scored) {
+      feedbackMessage.textContent = "Floor bounce.";
     }
 
     const crossedPlane = previousY < rim.y && ball.y >= rim.y && ball.vy > 0;
@@ -607,6 +781,7 @@ function shoot() {
 
     if (crossedRim && !ball.scored) {
       ball.scored = true;
+      emitConfetti((rim.left + rim.right) / 2, rim.y - 10);
       game.score += 2;
       game.streak += 1;
       const spotProgress = registerSpotMake();
@@ -615,20 +790,32 @@ function shoot() {
         saveCurrentHighScore(game.best);
       }
       if (spotProgress.newlyCompleted && spotProgress.allDone) {
-        feedbackMessage.textContent = "Bucket! Level challenge completed.";
+        feedbackMessage.textContent = "Bucket! Challenge done.";
       } else if (spotProgress.newlyCompleted) {
-        feedbackMessage.textContent = `Bucket! Spot progress ${spotProgress.current}/${spotProgress.required}.`;
+        feedbackMessage.textContent = `Bucket! ${spotProgress.current}/${spotProgress.required} here.`;
       } else {
-        feedbackMessage.textContent = "Bucket! Keep going on this spot challenge.";
+        feedbackMessage.textContent = "Bucket!";
       }
       updateStats();
       ball.flying = false;
       game.shotResolved = true;
+      const nextLevel = spotProgress.allDone ? getNextLevel(game.level) : null;
+      if (nextLevel) {
+        nextChallengeBtn.textContent = `Try ${levels[nextLevel].label}`;
+        nextChallengeBtn.dataset.nextLevel = nextLevel;
+        nextChallengeBtn.classList.remove("hidden");
+      } else {
+        nextChallengeBtn.classList.add("hidden");
+        nextChallengeBtn.dataset.nextLevel = "";
+      }
+      showShotReview();
       showShotNotice(
         spotProgress.allDone ? "Level Complete!" : "Nice Shot!",
         spotProgress.allDone
-          ? "Challenge complete. You can still review calculations and keep shooting."
-          : "Made it through the hoop. Review the graph, then try again."
+          ? nextLevel
+            ? `Done. Try ${levels[nextLevel].label}?`
+            : "Done. You beat all levels."
+          : "Made it. Check graph, then retry."
       );
       return;
     }
@@ -636,10 +823,11 @@ function shoot() {
     previousY = ball.y;
     previousX = ball.x;
 
-    const out =
-      ball.y > canvas.height + 80 ||
-      ball.x > canvas.width + 80 ||
-      ball.x < -80;
+    const settledOnFloor =
+      ball.y >= floorY - ball.r - 0.1 &&
+      Math.abs(ball.vy) < 2 &&
+      Math.abs(ball.vx) < 24;
+    const out = ball.x > canvas.width + 80 || ball.x < -80 || settledOnFloor;
 
     if (out) {
       if (!ball.scored) {
@@ -649,7 +837,10 @@ function shoot() {
       }
       ball.flying = false;
       game.shotResolved = true;
-      showShotNotice("Shot Ended", "Missed this one. Check the graph and try again.");
+      nextChallengeBtn.classList.add("hidden");
+      nextChallengeBtn.dataset.nextLevel = "";
+      showShotReview();
+      showShotNotice("Shot Ended", "Missed. Check graph and retry.");
       return;
     }
 
@@ -724,6 +915,51 @@ function drawCourt() {
   }
 }
 
+function getCanvasPoint(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) * canvas.width) / rect.width,
+    y: ((event.clientY - rect.top) * canvas.height) / rect.height
+  };
+}
+
+function drawSpotDragger() {
+  const cfg = levels[game.level];
+  if (cfg.distanceMode.type !== "spots") return;
+
+  const minX = LAUNCH_MIN_X;
+  const maxX = LAUNCH_MAX_X;
+  const trackY = floorY + 28;
+  const knobY = trackY;
+  const knobRadius = 13;
+
+  ctx.strokeStyle = "rgba(184, 219, 255, 0.55)";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(minX, trackY);
+  ctx.lineTo(maxX, trackY);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(140, 205, 255, 0.85)";
+  for (const spotX of cfg.distanceMode.spots) {
+    ctx.beginPath();
+    ctx.arc(spotX, trackY, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = dragState.active ? "#8cffd5" : "#67c1ff";
+  ctx.beginPath();
+  ctx.arc(launcher.x, knobY, knobRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(14, 36, 56, 0.8)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(launcher.x, knobY, knobRadius, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
 function drawLauncher() {
   ctx.fillStyle = "#2a3e58";
   ctx.beginPath();
@@ -767,6 +1003,7 @@ function drawBall() {
 }
 
 function drawShotPath() {
+  if (!levels[game.level].showLivePath) return;
   if (ball.path.length < 2) return;
   ctx.strokeStyle = "rgba(122, 233, 193, 0.95)";
   ctx.lineWidth = 3;
@@ -869,6 +1106,8 @@ function drawTrajectoryPreview() {
 
 function render() {
   drawCourt();
+  updateAndDrawConfetti();
+  drawSpotDragger();
   drawTrajectoryPreview();
   drawAngleGuide();
   drawLauncher();
@@ -876,7 +1115,6 @@ function render() {
   drawBall();
   drawPhysicsVectors();
   updateReadout();
-  drawShotGraph();
   requestAnimationFrame(render);
 }
 
@@ -909,25 +1147,12 @@ levelOptions.forEach((btn) => {
 });
 
 startGameBtn.addEventListener("click", () => {
-  game.score = 0;
-  game.shots = 0;
-  game.streak = 0;
-  game.best = getCurrentHighScore();
-  game.shotResolved = false;
-
-  hudName.textContent = game.playerName;
-  hudLevel.textContent = levels[game.level].label;
-  applyLevelRules();
-  updateStats();
-  resetBall();
-  hideShotNotice();
-  updateGraphVisibility();
-  feedbackMessage.textContent = "Tune controls and launch to explore projectile motion.";
-  showScreen("game");
+  startSelectedLevel();
 });
 
 changeNameBtn.addEventListener("click", () => {
   hideShotNotice();
+  hideShotReview();
   setGuestUser();
   showLandingWelcome();
   showScreen("name");
@@ -936,38 +1161,81 @@ changeNameBtn.addEventListener("click", () => {
 shootBtn.addEventListener("click", shoot);
 resetBtn.addEventListener("click", () => {
   hideShotNotice();
+  hideShotReview();
   resetBall();
   updateReadout();
   feedbackMessage.textContent = "Shot reset.";
 });
 backBtn.addEventListener("click", () => {
   hideShotNotice();
+  hideShotReview();
   showScreen("level");
 });
 tryAgainBtn.addEventListener("click", () => {
   hideShotNotice();
+  hideShotReview();
   resetBall();
   updateReadout();
   feedbackMessage.textContent = "Try another shot.";
 });
-viewCalcBtn.addEventListener("click", () => {
-  graphToggle.checked = true;
-  updateGraphVisibility();
+reviewTryAgainBtn.addEventListener("click", () => {
   hideShotNotice();
-  feedbackMessage.textContent = "Graph enabled. Review the trajectory and equations.";
+  hideShotReview();
+  resetBall();
+  updateReadout();
+  feedbackMessage.textContent = "Try another shot.";
+});
+nextChallengeBtn.addEventListener("click", () => {
+  const nextLevel = nextChallengeBtn.dataset.nextLevel;
+  if (!nextLevel || !levels[nextLevel]) return;
+  hideShotNotice();
+  hideShotReview();
+  setLevel(nextLevel);
+  startSelectedLevel();
 });
 distanceInput.addEventListener("input", () => {
   if (ball.flying || game.shotResolved) return;
-  setLauncherX(Number(distanceInput.value));
+  setCurrentSpotByX(Number(distanceInput.value));
 });
-nextSpotBtn.addEventListener("click", () => {
+
+function handleSpotDrag(event) {
   const cfg = levels[game.level];
   if (cfg.distanceMode.type !== "spots" || ball.flying || game.shotResolved) return;
-  game.currentSpotIndex = (game.currentSpotIndex + 1) % cfg.distanceMode.spots.length;
-  setLauncherX(cfg.distanceMode.spots[game.currentSpotIndex]);
-  updateSpotInfo();
+  const pos = getCanvasPoint(event);
+  setCurrentSpotByX(pos.x);
+}
+
+canvas.addEventListener("pointerdown", (event) => {
+  const cfg = levels[game.level];
+  if (cfg.distanceMode.type !== "spots" || ball.flying || game.shotResolved) return;
+  const pos = getCanvasPoint(event);
+  const handleY = floorY + 28;
+  const handleDistance = Math.hypot(pos.x - launcher.x, pos.y - handleY);
+  const onTrack = pos.y > floorY + 8 && pos.y < floorY + 46;
+  if (handleDistance > 28 && !onTrack) return;
+
+  dragState.active = true;
+  dragState.pointerId = event.pointerId;
+  canvas.classList.add("dragging");
+  canvas.setPointerCapture(event.pointerId);
+  handleSpotDrag(event);
 });
-graphToggle.addEventListener("input", updateGraphVisibility);
+
+canvas.addEventListener("pointermove", (event) => {
+  if (!dragState.active || dragState.pointerId !== event.pointerId) return;
+  handleSpotDrag(event);
+});
+
+function stopSpotDrag(event) {
+  if (!dragState.active || dragState.pointerId !== event.pointerId) return;
+  dragState.active = false;
+  dragState.pointerId = null;
+  canvas.classList.remove("dragging");
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+}
+
+canvas.addEventListener("pointerup", stopSpotDrag);
+canvas.addEventListener("pointercancel", stopSpotDrag);
 
 [angleInput, powerInput, gravityInput, distanceInput].forEach((input) => {
   input.addEventListener("input", () => {
@@ -989,6 +1257,6 @@ setGuestUser();
 showLandingWelcome();
 showScreen("name");
 hideShotNotice();
-updateGraphVisibility();
+hideShotReview();
 updateReadout();
 render();

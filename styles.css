@@ -275,14 +275,18 @@ input:focus {
 .level-option strong {
   display: block;
   font-size: 1.05rem;
+  text-align: center;
 }
 
-.level-option span {
-  display: block;
-  margin-top: 0.3rem;
-  color: var(--muted);
-  font-size: 0.86rem;
-  line-height: 1.35;
+.level-challenge-box {
+  margin-top: 0.8rem;
+}
+
+.challenge-list {
+  display: grid;
+  gap: 0.22rem;
+  color: #dff1ff;
+  font-size: 0.85rem;
 }
 
 .level-option.selected {
@@ -326,17 +330,45 @@ input:focus {
   justify-content: flex-end;
 }
 
-.graph-panel {
-  background: rgba(12, 30, 50, 0.36);
+.shot-review {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  width: min(1080px, 95vw);
+  z-index: 43;
 }
 
-#graphCanvas {
+.shot-review-card {
+  padding: 0.7rem;
+  border-color: rgba(173, 226, 255, 0.44);
+  background: linear-gradient(165deg, rgba(15, 37, 61, 0.9), rgba(9, 24, 41, 0.9));
+}
+
+.shot-review-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.shot-review-head h3 {
+  margin: 0;
+}
+
+#shotGraphCanvas {
   width: 100%;
   height: auto;
+  margin-top: 0.5rem;
   border: 1px solid rgba(134, 201, 255, 0.35);
   border-radius: 12px;
+  background: rgba(7, 23, 38, 0.8);
+}
+
+.shot-review-actions {
   margin-top: 0.5rem;
-  background: rgba(8, 24, 40, 0.2);
+  display: flex;
+  justify-content: flex-end;
 }
 
 .topbar,
@@ -386,6 +418,12 @@ input:focus {
   border: 2px solid rgba(129, 191, 255, 0.46);
   border-radius: 16px;
   background: #0d1a2a;
+  touch-action: none;
+  cursor: grab;
+}
+
+#courtCanvas.dragging {
+  cursor: grabbing;
 }
 
 .panel {
