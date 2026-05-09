@@ -996,54 +996,146 @@ function drawCourt() {
   for (let j = 0; j < canvas.height; j += 56) ctx.fillRect(0, j, canvas.width, 1);
 
   if (game.sport === "soccer") {
-    const floor = ctx.createLinearGradient(0, floorY - 36, 0, canvas.height);
-    floor.addColorStop(0, "#2d6b4f");
-    floor.addColorStop(1, "#1a3f2f");
-    ctx.fillStyle = floor;
-    ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+    // Grass field background
+    const grassGradient = ctx.createLinearGradient(0, 0, 0, floorY);
+    grassGradient.addColorStop(0, "#3d7c4a");
+    grassGradient.addColorStop(1, "#2e5a38");
+    ctx.fillStyle = grassGradient;
+    ctx.fillRect(0, 0, canvas.width, floorY);
 
-    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    // Grass texture effect
+    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+    for (let i = 0; i < 80; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * floorY;
+      const size = Math.random() * 2 + 1;
+      ctx.fillRect(x, y, size, size);
+    }
+
+    // Field markings
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
     ctx.lineWidth = 2;
+    
+    // Center line (full height)
     ctx.beginPath();
-    ctx.moveTo(0, floorY);
-    ctx.lineTo(canvas.width, floorY);
+    ctx.moveTo(canvas.width / 2, 60);
+    ctx.lineTo(canvas.width / 2, floorY);
     ctx.stroke();
 
+    // Distance lines (more spaced)
     ctx.setLineDash([8, 8]);
     ctx.lineWidth = 1.2;
     ctx.font = "700 12px Inter, sans-serif";
     SOCCER_DISTANCE_LINES.forEach((line) => {
-      ctx.strokeStyle = "rgba(200, 255, 200, 0.45)";
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
       ctx.beginPath();
-      ctx.moveTo(line.x, floorY - 170);
-      ctx.lineTo(line.x, floorY);
+      ctx.moveTo(line.x, 60);
+      ctx.lineTo(line.x, floorY - 20);
       ctx.stroke();
-      ctx.fillStyle = "rgba(220, 255, 220, 0.86)";
-      ctx.fillText(line.label, line.x + 8, floorY - 144);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.fillText(line.label, line.x + 8, 80);
     });
     ctx.setLineDash([]);
 
-    ctx.fillStyle = "rgba(200, 100, 100, 0.3)";
+    // Wall (keep it, but styled better)
+    ctx.fillStyle = "rgba(100, 100, 100, 0.5)";
     ctx.fillRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
-    ctx.strokeStyle = "rgba(255, 80, 80, 0.7)";
+    ctx.strokeStyle = "rgba(60, 60, 60, 0.8)";
     ctx.lineWidth = 2;
     ctx.strokeRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
 
-    ctx.strokeStyle = "rgba(200, 200, 200, 0.6)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(soccerGoal.x, soccerGoal.centerY - soccerGoal.h / 2);
-    ctx.lineTo(soccerGoal.x, soccerGoal.centerY + soccerGoal.h / 2);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(200, 200, 200, 0.15)";
-    ctx.fillRect(soccerGoal.x - 8, soccerGoal.centerY - soccerGoal.h / 2, 20, soccerGoal.h);
+    // Draw actual soccer goal frame
+    const goalX = soccerGoal.x;
+    const goalY = soccerGoal.centerY;
+    const goalW = 60;
+    const goalH = 90;
 
-    ctx.fillStyle = "rgba(255, 150, 150, 0.8)";
+    // Goal posts (vertical lines)
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(soccerGoalie.x, soccerGoalie.y, soccerGoalie.r, 0, Math.PI * 2);
+    ctx.moveTo(goalX - goalW / 2, goalY - goalH / 2);
+    ctx.lineTo(goalX - goalW / 2, goalY + goalH / 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(goalX + goalW / 2, goalY - goalH / 2);
+    ctx.lineTo(goalX + goalW / 2, goalY + goalH / 2);
+    ctx.stroke();
+
+    // Cross bar (top)
+    ctx.beginPath();
+    ctx.moveTo(goalX - goalW / 2, goalY - goalH / 2);
+    ctx.lineTo(goalX + goalW / 2, goalY - goalH / 2);
+    ctx.stroke();
+
+    // Goal line (bottom)
+    ctx.beginPath();
+    ctx.moveTo(goalX - goalW / 2, goalY + goalH / 2);
+    ctx.lineTo(goalX + goalW / 2, goalY + goalH / 2);
+    ctx.stroke();
+
+    // Net (light blue mesh)
+    ctx.strokeStyle = "rgba(150, 200, 255, 0.35)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 6; i++) {
+      const x = goalX - goalW / 2 + (i * goalW) / 6;
+      ctx.beginPath();
+      ctx.moveTo(x, goalY - goalH / 2);
+      ctx.lineTo(x, goalY + goalH / 2);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= 8; j++) {
+      const y = goalY - goalH / 2 + (j * goalH) / 8;
+      ctx.beginPath();
+      ctx.moveTo(goalX - goalW / 2, y);
+      ctx.lineTo(goalX + goalW / 2, y);
+      ctx.stroke();
+    }
+
+    // Goalkeeper figure (more character-like)
+    const goalieX = soccerGoalie.x;
+    const goalieY = soccerGoalie.y;
+
+    // Body
+    ctx.fillStyle = "#ff6b5b";
+    ctx.beginPath();
+    ctx.arc(goalieX, goalieY, 10, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(100, 50, 50, 0.8)";
-    ctx.lineWidth = 2;
+
+    // Head
+    ctx.fillStyle = "#ffdbac";
+    ctx.beginPath();
+    ctx.arc(goalieX, goalieY - 14, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Arms
+    ctx.strokeStyle = "#ffdbac";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(goalieX - 10, goalieY - 2);
+    ctx.lineTo(goalieX - 18, goalieY - 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(goalieX + 10, goalieY - 2);
+    ctx.lineTo(goalieX + 18, goalieY - 4);
+    ctx.stroke();
+
+    // Legs
+    ctx.beginPath();
+    ctx.moveTo(goalieX - 5, goalieY + 10);
+    ctx.lineTo(goalieX - 5, goalieY + 20);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(goalieX + 5, goalieY + 10);
+    ctx.lineTo(goalieX + 5, goalieY + 20);
+    ctx.stroke();
+
+    // Goalkeeper outline
+    ctx.strokeStyle = "rgba(50, 50, 50, 0.6)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(goalieX, goalieY, 10, 0, Math.PI * 2);
     ctx.stroke();
   } else {
     const floor = ctx.createLinearGradient(0, floorY - 36, 0, canvas.height);
@@ -1175,22 +1267,58 @@ function drawBall() {
   ctx.translate(ball.x, ball.y);
   
   if (game.sport === "soccer") {
+    // Base white ball
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
     ctx.fill();
+
+    // Black pentagons and hexagons pattern (classic soccer ball)
+    ctx.fillStyle = "#000000";
     ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
-      const angle = (i / 5) * Math.PI * 2;
+    ctx.lineWidth = 0.5;
+
+    // Pentagon at top
+    const drawPentagon = (cx, cy, size) => {
       ctx.beginPath();
-      ctx.arc(Math.cos(angle) * 4, Math.sin(angle) * 4, 2, 0, Math.PI * 2);
+      for (let i = 0; i < 5; i++) {
+        const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+        const x = cx + Math.cos(angle) * size;
+        const y = cy + Math.sin(angle) * size;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
-    }
+    };
+
+    const drawHexagon = (cx, cy, size) => {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * 2 * Math.PI) / 6;
+        const x = cx + Math.cos(angle) * size;
+        const y = cy + Math.sin(angle) * size;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+
+    const size = 1.8;
+    drawPentagon(0, -3, size);
+    drawHexagon(-3, 1.5, size);
+    drawHexagon(3, 1.5, size);
+    drawPentagon(0, 4.5, size);
+
+    // Outer circle
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
+    ctx.stroke();
   } else {
     ctx.fillStyle = "#f89237";
     ctx.beginPath();
