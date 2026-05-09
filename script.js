@@ -166,8 +166,8 @@ const levels = {
       makesPerSpot: 3
     },
     inputMode: "typed",
-    showPreview: true,
-    showLivePath: true,
+    showPreview: false,
+    showLivePath: false,
     challengeSummary: "Tighter targets",
     challenges: [
       "3 makes from Paint",
@@ -694,7 +694,8 @@ function resolveFloorBounce() {
 }
 
 function resolveSoccerWallCollision() {
-  if (!soccerWall.active) return false;
+  // Wall only active in medium and hard difficulty
+  if (game.level === "easy" || !soccerWall.active) return false;
   const wallLeft = soccerWall.x;
   const wallRight = soccerWall.x + soccerWall.w;
   const wallTop = soccerWall.y;
@@ -900,7 +901,7 @@ function shoot() {
       let inGoal = false;
       if (crossedGoalLine) {
         const yAtGoal = previousY + (ball.y - previousY) * ((goalLeft - previousX) / (ball.x - previousX + 0.0001));
-        inGoal = yAtGoal > goalTop && yAtGoal < goalBottom && Math.abs(ball.y - yAtGoal) < 8;
+        inGoal = yAtGoal > goalTop && yAtGoal < goalBottom && Math.abs(ball.y - yAtGoal) < 20;
       }
       if (inGoal && !ball.scored) {
         scoredThisFrame = true;
@@ -1051,8 +1052,8 @@ function drawCourt() {
     });
     ctx.setLineDash([]);
 
-    // Wall - only show in hard mode
-    if (game.level === "hard") {
+    // Wall - show in medium and hard mode
+    if (game.level !== "easy") {
       ctx.fillStyle = "rgba(120, 120, 120, 0.6)";
       ctx.fillRect(soccerWall.x, soccerWall.y, soccerWall.w, soccerWall.h);
       ctx.strokeStyle = "rgba(80, 80, 80, 0.9)";
