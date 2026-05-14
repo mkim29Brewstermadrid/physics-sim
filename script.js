@@ -78,6 +78,10 @@ const soccerGoal = { x: 920, centerY: 280, w: 60, h: 100 };
 const soccerWall = { x: 750, y: 180, w: 8, h: 140, active: true };
 const soccerGoalie = { x: 920, y: 280, r: 16, vx: 0, speed: 120, minY: 220, maxY: 340, t: 0 };
 
+const hockeyGoal = { x: 920, centerY: 280, w: 50, h: 80 };
+const hockeyWall = { x: 750, y: 190, w: 8, h: 120, active: true };
+const hockeyGoalie = { x: 920, y: 280, r: 14, vx: 0, speed: 140, minY: 230, maxY: 330, t: 0 };
+
 const RIM_NODE_RADIUS = 7;
 const LAUNCH_SPEED_SCALE = 6.6;
 const GRAVITY_PIXEL_SCALE = 34;
@@ -87,6 +91,11 @@ const SOCCER_DISTANCE_LINES = [
   { x: 280, label: "Penalty Mark" },
   { x: 180, label: "Mid-field" },
   { x: 80, label: "Center Line" }
+];
+const HOCKEY_DISTANCE_LINES = [
+  { x: 280, label: "Blue Line" },
+  { x: 180, label: "Center" },
+  { x: 80, label: "Blue Line" }
 ];
 const DISTANCE_LINES = [
   { x: 280, label: "Paint Line" },
@@ -362,7 +371,9 @@ function updateStats() {
 }
 
 function getCurrentDistanceLines() {
-  return game.sport === "soccer" ? SOCCER_DISTANCE_LINES : DISTANCE_LINES;
+  if (game.sport === "soccer") return SOCCER_DISTANCE_LINES;
+  if (game.sport === "hockey") return HOCKEY_DISTANCE_LINES;
+  return DISTANCE_LINES;
 }
 
 function nearestDistanceLabel(x) {
@@ -501,6 +512,10 @@ function updateChallengePanel() {
     challengeSummary.textContent = cfg.challengeSummary + " (Soccer)";
     const soccerChallenges = cfg.challenges.map(c => c.replace(/makes/i, "goals").replace(/from .*?Line/i, "shot").replace(/Paint|Three-point/i, ""));
     challengeList.innerHTML = soccerChallenges.map((item, index) => `${index + 1}. ${item}`).join("<br/>");
+  } else if (game.sport === "hockey") {
+    challengeSummary.textContent = cfg.challengeSummary + " (Hockey)";
+    const hockeyChallenges = cfg.challenges.map(c => c.replace(/makes/i, "scores").replace(/from .*?Line/i, "shot").replace(/Paint|Three-point/i, ""));
+    challengeList.innerHTML = hockeyChallenges.map((item, index) => `${index + 1}. ${item}`).join("<br/>");
   } else {
     challengeSummary.textContent = cfg.challengeSummary;
     challengeList.innerHTML = cfg.challenges.map((item, index) => `${index + 1}. ${item}`).join("<br/>");
@@ -564,7 +579,13 @@ function startSelectedLevel() {
 
   hudName.textContent = game.playerName;
   hudLevel.textContent = levels[game.level].label;
-  hudTitle.textContent = game.sport === "soccer" ? "Physics Soccer Lab" : "Physics Hoops Lab";
+  if (game.sport === "soccer") {
+    hudTitle.textContent = "Physics Soccer Lab";
+  } else if (game.sport === "hockey") {
+    hudTitle.textContent = "Physics Hockey Lab";
+  } else {
+    hudTitle.textContent = "Physics Hoops Lab";
+  }
   applyLevelRules();
   updateStats();
   resetBall();
@@ -805,6 +826,117 @@ function updateSoccerGoalie(dt = 1 / 60) {
   soccerGoalie.y = soccerGoalie.minY + (soccerGoalie.maxY - soccerGoalie.minY) * (0.5 + 0.5 * sine);
 }
 
+function resolveHockeyWallCollision() {
+  if (game.level === "easy" || !hockeyWall.active) return false;
+  const wallLeft = hockeyWall.x;
+  const wallRight = hockeyWall.x + hockeyWall.w;
+  const wallTop = hockeyWall.y;
+  const wallBottom = hockeyWall.y + hockeyWall.h;
+
+  const verticallyOverlapping = ball.y + ball.r > wallTop && ball.y - ball.r < wallBottom;
+  if (!verticallyOverlapping) return false;
+
+  const hitFront = ball.vx > 0 && ball.x + ball.r >= wallLeft && ball.x - ball.r < wallLeft;
+  if (hitFront) {
+    ball.x = wallLeft - ball.r - 0.2;
+    ball.vx = -Math.abs(ball.vx) * 0.5;
+    ball.vy *= 0.95;
+    return true;
+  }
+  return false;
+}
+
+function resolveHockeyGoalieCollision() {
+  const dx = ball.x - hockeyGoalie.x;
+  const dy = ball.y - hockeyGoalie.y;
+  const distance = Math.hypot(dx, dy) || 0.0001;
+  const minDistance = ball.r + hockeyGoalie.r;
+  
+  if (distance >= minDistance) return false;
+  
+  const nx = dx / distance;
+  const ny = dy / distance;
+  const overlap = minDistance - distance;
+  ball.x += nx * overlap;
+  ball.y += ny * overlap;
+
+  const vn = ball.vx * nx + ball.vy * ny;
+  if (vn < 0) {
+    const tx = -ny;
+    const ty = nx;
+    const vt = ball.vx * tx + ball.vy * ty;
+    const vnAfter = -vn * 0.6;
+    const vtAfter = vt * 0.85;
+    ball.vx = vnAfter * nx + vtAfter * tx;
+    ball.vy = vnAfter * ny + vtAfter * ty;
+  }
+  return true;
+}
+
+function updateHockeyGoalie(dt = 1 / 60) {
+  hockeyGoalie.t += dt;
+  const period = 2.5;
+  const phase = (hockeyGoalie.t % period) / period;
+  const sine = Math.sin(phase * Math.PI * 2);
+  hockeyGoalie.y = hockeyGoalie.minY + (hockeyGoalie.maxY - hockeyGoalie.minY) * (0.5 + 0.5 * sine);
+}
+
+function resolveHockeyGoalFrameCollision() {
+  const goalX = hockeyGoal.x;
+  const goalY = hockeyGoal.centerY;
+  const goalW = 50;
+  const goalH = 80;
+  
+  const leftPost = goalX - goalW / 2;
+  const rightPost = goalX + goalW / 2;
+  const topBar = goalY - goalH / 2;
+  const bottomLine = goalY + goalH / 2;
+  
+  let hitFrame = false;
+
+  // Left post collision
+  if (Math.abs(ball.x - leftPost) < ball.r && ball.y > topBar - ball.r && ball.y < bottomLine + ball.r) {
+    if (ball.vx < 0) {
+      ball.x = leftPost - ball.r;
+      ball.vx = -ball.vx * 0.4;
+      ball.vy *= 0.9;
+      hitFrame = true;
+    }
+  }
+
+  // Right post collision
+  if (Math.abs(ball.x - rightPost) < ball.r && ball.y > topBar - ball.r && ball.y < bottomLine + ball.r) {
+    if (ball.vx > 0) {
+      ball.x = rightPost + ball.r;
+      ball.vx = -ball.vx * 0.4;
+      ball.vy *= 0.9;
+      hitFrame = true;
+    }
+  }
+
+  // Top crossbar collision
+  if (Math.abs(ball.y - topBar) < ball.r && ball.x > leftPost - ball.r && ball.x < rightPost + ball.r) {
+    if (ball.vy < 0) {
+      ball.y = topBar - ball.r;
+      ball.vy = -ball.vy * 0.4;
+      ball.vx *= 0.9;
+      hitFrame = true;
+    }
+  }
+
+  // Bottom goal line collision
+  if (Math.abs(ball.y - bottomLine) < ball.r && ball.x > leftPost - ball.r && ball.x < rightPost + ball.r) {
+    if (ball.vy > 0) {
+      ball.y = bottomLine + ball.r;
+      ball.vy = -ball.vy * 0.4;
+      ball.vx *= 0.9;
+      hitFrame = true;
+    }
+  }
+
+  return hitFrame;
+}
+
 function updateReadout() {
   const controlsPhysics = getPhysicsFromControls();
   const physics = activeShotPhysics || controlsPhysics;
@@ -839,12 +971,19 @@ function updateReadout() {
 
 function getMissFeedback(finalX) {
   if (ball.scored) {
-    return game.sport === "soccer" ? "Goal! Excellent shot." : "Swish. Great projectile setup.";
+    if (game.sport === "soccer") return "Goal! Excellent shot.";
+    if (game.sport === "hockey") return "Score! Nice shot!";
+    return "Swish. Great projectile setup.";
   }
   if (game.sport === "soccer") {
     if (game.maxHeight > (floorY - 200)) return "Shot too low. Increase angle or launch speed.";
     if (finalX > (soccerGoal.x + 50)) return "Overshot the goal. Reduce power or adjust angle.";
     if (finalX < (soccerGoal.x - 50)) return "Missed left. Adjust angle and power.";
+    return "Close. Check your trajectory and try again.";
+  } else if (game.sport === "hockey") {
+    if (game.maxHeight > (floorY - 200)) return "Shot too low. Increase angle or launch speed.";
+    if (finalX > (hockeyGoal.x + 40)) return "Overshot the goal. Reduce power or adjust angle.";
+    if (finalX < (hockeyGoal.x - 40)) return "Missed left. Adjust angle and power.";
     return "Close. Check your trajectory and try again.";
   } else {
     if (game.maxHeight > rim.y + 24) return "Arc stayed too low. Increase angle or launch speed.";
@@ -911,10 +1050,21 @@ function shoot() {
       updateSoccerGoalie(dt);
       const hitWall = resolveSoccerWallCollision();
       const hitGoalie = resolveSoccerGoalieCollision();
+      const hitFrame = resolveSoccerGoalFrameCollision();
       const hitFloor = resolveFloorBounce();
-      hitObstacle = hitWall || hitGoalie || hitFloor;
+      hitObstacle = hitWall || hitGoalie || hitFrame || hitFloor;
       if (hitObstacle && !ball.scored) {
-        feedbackMessage.textContent = hitWall ? "Wall blocked." : hitGoalie ? "Goalie saved!" : "Ground bounce.";
+        feedbackMessage.textContent = hitWall ? "Wall blocked." : hitGoalie ? "Goalie saved!" : hitFrame ? "Post hit." : "Ground bounce.";
+      }
+    } else if (game.sport === "hockey") {
+      updateHockeyGoalie(dt);
+      const hitWall = resolveHockeyWallCollision();
+      const hitGoalie = resolveHockeyGoalieCollision();
+      const hitFrame = resolveHockeyGoalFrameCollision();
+      const hitFloor = resolveFloorBounce();
+      hitObstacle = hitWall || hitGoalie || hitFrame || hitFloor;
+      if (hitObstacle && !ball.scored) {
+        feedbackMessage.textContent = hitWall ? "Wall blocked." : hitGoalie ? "Goalie saved!" : hitFrame ? "Post hit." : "Ground bounce.";
       }
     } else {
       const hitBackboard = resolveBackboardCollision();
@@ -948,7 +1098,7 @@ function shoot() {
         emitConfetti((rim.left + rim.right) / 2, rim.y - 10);
         game.score += 2;
       }
-    } else {
+    } else if (game.sport === "soccer") {
       const goalLeft = soccerGoal.x;
       const goalRight = soccerGoal.x + soccerGoal.w;
       const goalTop = soccerGoal.centerY - soccerGoal.h / 2;
@@ -963,6 +1113,23 @@ function shoot() {
         scoredThisFrame = true;
         ball.scored = true;
         emitConfetti(soccerGoal.x - 10, soccerGoal.centerY);
+        game.score += 1;
+      }
+    } else if (game.sport === "hockey") {
+      const goalLeft = hockeyGoal.x;
+      const goalRight = hockeyGoal.x + hockeyGoal.w;
+      const goalTop = hockeyGoal.centerY - hockeyGoal.h / 2;
+      const goalBottom = hockeyGoal.centerY + hockeyGoal.h / 2;
+      const crossedGoalLine = previousX < goalLeft && ball.x >= goalLeft && ball.vx > 0;
+      let inGoal = false;
+      if (crossedGoalLine) {
+        const yAtGoal = previousY + (ball.y - previousY) * ((goalLeft - previousX) / (ball.x - previousX + 0.0001));
+        inGoal = yAtGoal > goalTop && yAtGoal < goalBottom && Math.abs(ball.y - yAtGoal) < 18;
+      }
+      if (inGoal && !ball.scored) {
+        scoredThisFrame = true;
+        ball.scored = true;
+        emitConfetti(hockeyGoal.x - 10, hockeyGoal.centerY);
         game.score += 1;
       }
     }
@@ -1041,6 +1208,9 @@ function drawCourt() {
   if (game.sport === "soccer") {
     bg.addColorStop(0, "#1a4d2e");
     bg.addColorStop(1, "#0d2818");
+  } else if (game.sport === "hockey") {
+    bg.addColorStop(0, "#e8f0f7");
+    bg.addColorStop(1, "#c0dff0");
   } else {
     bg.addColorStop(0, "#102237");
     bg.addColorStop(1, "#0d1a2a");
@@ -1243,6 +1413,162 @@ function drawCourt() {
     ctx.beginPath();
     ctx.arc(goalieX, goalieY, 11, 0, Math.PI * 2);
     ctx.stroke();
+  } else if (game.sport === "hockey") {
+    // Ice rink - light blue gradient
+    const iceGradient = ctx.createLinearGradient(0, 0, 0, floorY);
+    iceGradient.addColorStop(0, "#d4e9f7");
+    iceGradient.addColorStop(1, "#a8d8f0");
+    ctx.fillStyle = iceGradient;
+    ctx.fillRect(0, 0, canvas.width, floorY);
+
+    // Center red line
+    ctx.strokeStyle = "#ff4444";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, 30);
+    ctx.lineTo(canvas.width / 2, floorY - 20);
+    ctx.stroke();
+
+    // Two blue lines
+    ctx.strokeStyle = "#2f5fb3";
+    ctx.lineWidth = 3;
+    [0.25, 0.75].forEach(t => {
+      const x = canvas.width * t;
+      ctx.beginPath();
+      ctx.moveTo(x, 30);
+      ctx.lineTo(x, floorY - 20);
+      ctx.stroke();
+    });
+
+    // Face-off circles
+    ctx.strokeStyle = "rgba(255, 68, 68, 0.5)";
+    ctx.lineWidth = 2;
+    [[0.25, 0.4], [0.75, 0.4], [0.25, 0.7], [0.75, 0.7]].forEach(([tx, ty]) => {
+      const cx = canvas.width * tx;
+      const cy = 30 + (floorY - 50) * ty;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    // Distance lines - properly positioned
+    ctx.setLineDash([8, 8]);
+    ctx.lineWidth = 1.5;
+    ctx.font = "700 12px Inter, sans-serif";
+    HOCKEY_DISTANCE_LINES.forEach((line) => {
+      ctx.strokeStyle = "rgba(50, 100, 180, 0.4)";
+      ctx.beginPath();
+      ctx.moveTo(line.x, 30);
+      ctx.lineTo(line.x, floorY - 20);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(50, 100, 180, 0.7)";
+      ctx.fillText(line.label, line.x + 8, 48);
+    });
+    ctx.setLineDash([]);
+
+    // Wall - show in medium and hard mode
+    if (game.level !== "easy") {
+      ctx.fillStyle = "rgba(150, 50, 50, 0.5)";
+      ctx.fillRect(hockeyWall.x, hockeyWall.y, hockeyWall.w, hockeyWall.h);
+      ctx.strokeStyle = "rgba(200, 80, 80, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hockeyWall.x, hockeyWall.y, hockeyWall.w, hockeyWall.h);
+    }
+
+    // Draw hockey goal frame
+    const goalX = hockeyGoal.x;
+    const goalY = hockeyGoal.centerY;
+    const goalW = 80;
+    const goalH = 100;
+
+    // Goal posts (red frame)
+    ctx.strokeStyle = "#ff0000";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(goalX - goalW / 2, goalY - goalH / 2);
+    ctx.lineTo(goalX - goalW / 2, goalY + goalH / 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(goalX + goalW / 2, goalY - goalH / 2);
+    ctx.lineTo(goalX + goalW / 2, goalY + goalH / 2);
+    ctx.stroke();
+
+    // Cross bar (top)
+    ctx.beginPath();
+    ctx.moveTo(goalX - goalW / 2, goalY - goalH / 2);
+    ctx.lineTo(goalX + goalW / 2, goalY - goalH / 2);
+    ctx.stroke();
+
+    // Goal line (bottom)
+    ctx.beginPath();
+    ctx.moveTo(goalX - goalW / 2, goalY + goalH / 2);
+    ctx.lineTo(goalX + goalW / 2, goalY + goalH / 2);
+    ctx.stroke();
+
+    // Hockey net - typical curved net
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.lineWidth = 1.2;
+    
+    // Vertical net lines
+    for (let i = 0; i <= 6; i++) {
+      const xStart = goalX - goalW / 2 + (i * goalW) / 6;
+      const xEnd = goalX - goalW / 2 + (i * goalW) / 6 + 12;
+      ctx.beginPath();
+      ctx.moveTo(xStart, goalY - goalH / 2);
+      ctx.quadraticCurveTo((xStart + xEnd) / 2, goalY, xEnd, goalY + goalH / 2 + 15);
+      ctx.stroke();
+    }
+    
+    // Horizontal net lines
+    for (let j = 0; j <= 5; j++) {
+      const yStart = goalY - goalH / 2 + (j * (goalH + 15)) / 5;
+      ctx.beginPath();
+      ctx.moveTo(goalX - goalW / 2, yStart);
+      for (let k = 0; k <= 6; k++) {
+        const t = k / 6;
+        const x = goalX - goalW / 2 + t * goalW;
+        const xDraw = x + (Math.sin(t * Math.PI) * (12 - (j / 5) * 5));
+        if (k === 0) ctx.moveTo(x, yStart);
+        else ctx.lineTo(xDraw, yStart + (j / 5) * 12);
+      }
+      ctx.stroke();
+    }
+
+    // Goalie figure
+    const goalieX = hockeyGoalie.x;
+    const goalieY = hockeyGoalie.y;
+
+    // Goalie pads (blue)
+    ctx.fillStyle = "#003da6";
+    ctx.beginPath();
+    ctx.arc(goalieX, goalieY + 8, 13, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Goalie body (white jersey)
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(goalieX, goalieY - 2, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Goalie head (helmet)
+    ctx.fillStyle = "#003da6";
+    ctx.beginPath();
+    ctx.arc(goalieX, goalieY - 18, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Goalie stick (holding)
+    ctx.strokeStyle = "#8b7355";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(goalieX - 12, goalieY + 8);
+    ctx.lineTo(goalieX - 35, goalieY + 25);
+    ctx.stroke();
+
+    // Stick blade (small rectangle at end)
+    ctx.fillStyle = "#8b7355";
+    ctx.fillRect(goalieX - 40, goalieY + 22, 12, 6);
+
   } else {
     const floor = ctx.createLinearGradient(0, floorY - 36, 0, canvas.height);
     floor.addColorStop(0, "#6f4f2f");
@@ -1411,6 +1737,74 @@ function drawLauncher() {
     ctx.font = "700 8px Arial";
     ctx.fillText("10", playerX - 2, playerY + 2);
 
+  } else if (game.sport === "hockey") {
+    // Draw hockey player
+    const playerX = launcher.x + 25;
+    const playerY = launcher.y + 20;
+
+    // Body (hockey gear)
+    ctx.fillStyle = "#003da6";
+    ctx.beginPath();
+    ctx.arc(playerX, playerY, 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    // White jersey stripe
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(playerX - 4, playerY - 8, 8, 12);
+
+    // Head (helmet)
+    ctx.fillStyle = "#003da6";
+    ctx.beginPath();
+    ctx.arc(playerX, playerY - 18, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Helmet visor
+    ctx.strokeStyle = "#888888";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(playerX, playerY - 18, 7, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+
+    // Get physics for dynamic stick angle
+    const physics = getPhysicsFromControls();
+    const stickAngle = physics.angleRad;
+    
+    // Hockey stick (holding and angled)
+    ctx.strokeStyle = "#8b7355";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    const stickLen = 45;
+    const stickEndX = playerX + Math.cos(stickAngle) * stickLen;
+    const stickEndY = playerY + Math.sin(stickAngle) * stickLen;
+    ctx.beginPath();
+    ctx.moveTo(playerX - 6, playerY + 8);
+    ctx.lineTo(stickEndX, stickEndY);
+    ctx.stroke();
+
+    // Stick blade (curved at end)
+    const bladeX = stickEndX + Math.cos(stickAngle + Math.PI / 3) * 12;
+    const bladeY = stickEndY + Math.sin(stickAngle + Math.PI / 3) * 12;
+    ctx.fillStyle = "#8b7355";
+    ctx.beginPath();
+    ctx.moveTo(stickEndX, stickEndY);
+    ctx.lineTo(bladeX, bladeY);
+    ctx.lineTo(stickEndX + Math.cos(stickAngle - Math.PI / 3) * 10, stickEndY + Math.sin(stickAngle - Math.PI / 3) * 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // Legs
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(playerX - 5, playerY + 12);
+    ctx.lineTo(playerX - 5, playerY + 24);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(playerX + 5, playerY + 12);
+    ctx.lineTo(playerX + 5, playerY + 24);
+    ctx.stroke();
+
   } else {
     // Basketball launcher (unchanged)
     ctx.fillStyle = "#2a3e58";
@@ -1494,6 +1888,25 @@ function drawBall() {
     ctx.beginPath();
     ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
     ctx.stroke();
+  } else if (game.sport === "hockey") {
+    // Hockey puck - black disk
+    ctx.fillStyle = "#1a1a1a";
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.r - 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Puck edges - metallic look
+    ctx.strokeStyle = "#888888";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, ball.r - 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Small highlights for depth
+    ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+    ctx.beginPath();
+    ctx.arc(-3, -3, 2, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     ctx.fillStyle = "#f89237";
     ctx.beginPath();
