@@ -169,10 +169,18 @@
       <div id="shotReview" class="shot-review hidden">
         <div class="card shot-review-card">
           <div class="shot-review-head">
-            <h3>Shot Graph</h3>
+            <h3>Shot Analysis</h3>
             <p id="shotGraphMeta" class="sub">x = distance, y = height.</p>
           </div>
-          <canvas id="shotGraphCanvas" width="980" height="290" aria-label="Shot trajectory graph"></canvas>
+          <div class="graph-container">
+            <canvas id="shotGraphCanvas" width="980" height="290" aria-label="Shot trajectory graph"></canvas>
+            <div id="graphTooltip" class="graph-tooltip hidden">
+              <p id="tooltipContent"></p>
+            </div>
+          </div>
+          <div id="shotSummary" class="shot-summary">
+            <p id="summaryText"></p>
+          </div>
           <div class="shot-review-actions">
             <button id="reviewTryAgainBtn" class="btn btn-primary">Try Again</button>
           </div>

@@ -65,6 +65,9 @@ const shotReview = document.getElementById("shotReview");
 const shotGraphMeta = document.getElementById("shotGraphMeta");
 const shotGraphCanvas = document.getElementById("shotGraphCanvas");
 const shotGraphCtx = shotGraphCanvas.getContext("2d");
+const graphTooltip = document.getElementById("graphTooltip");
+const tooltipContent = document.getElementById("tooltipContent");
+const summaryText = document.getElementById("summaryText");
 
 const canvas = document.getElementById("courtCanvas");
 const ctx = canvas.getContext("2d");
@@ -76,11 +79,11 @@ const backboard = { x: 890, y: 150, w: 10, h: 128 };
 
 const soccerGoal = { x: 920, centerY: 280, w: 60, h: 100 };
 const soccerWall = { x: 750, y: 180, w: 8, h: 140, active: true };
-const soccerGoalie = { x: 920, y: 280, r: 16, vx: 0, speed: 120, minY: 220, maxY: 340, t: 0 };
+const soccerGoalie = { x: 870, y: 280, r: 16, vx: 0, speed: 120, minY: 220, maxY: 340, t: 0 };
 
 const hockeyGoal = { x: 920, centerY: 280, w: 50, h: 80 };
 const hockeyWall = { x: 750, y: 190, w: 8, h: 120, active: true };
-const hockeyGoalie = { x: 920, y: 280, r: 14, vx: 0, speed: 140, minY: 230, maxY: 330, t: 0 };
+const hockeyGoalie = { x: 880, y: 280, r: 14, vx: 0, speed: 140, minY: 230, maxY: 330, t: 0 };
 
 const RIM_NODE_RADIUS = 7;
 const LAUNCH_SPEED_SCALE = 6.6;
@@ -245,14 +248,67 @@ function showShotNotice(title, message) {
 
 function hideShotReview() {
   shotReview.classList.add("hidden");
+  shotGraphCanvas.removeEventListener("mousemove", handleGraphTooltip);
+}
+
+function calculateShotSummary() {
+  if (ball.path.length < 2) return null;
+
+  const physics = activeShotPhysics || getPhysicsFromControls();
+  const plotPoints = ball.path.map((pt) => ({
+    x: pt.x - ball.x0,
+    y: ball.y0 - pt.y
+  }));
+
+  let maxHeight = plotPoints[0].y;
+  let maxHeightIdx = 0;
+  let totalDistance = plotPoints[plotPoints.length - 1].x;
+  
+  for (let i = 1; i < plotPoints.length; i++) {
+    if (plotPoints[i].y > maxHeight) {
+      maxHeight = plotPoints[i].y;
+      maxHeightIdx = i;
+    }
+  }
+
+  const flightTime = ball.t;
+  const pixelsToMeters = 0.02; // 1 pixel = 0.02 meters (approx)
+  const maxHeightM = maxHeight * pixelsToMeters;
+  const totalDistanceM = totalDistance * pixelsToMeters;
+  
+  // Calculate initial velocity components
+  const initialVx = Math.cos(physics.angleRad) * physics.speed;
+  const initialVy = -Math.abs(Math.sin(physics.angleRad) * physics.speed);
+  const initialSpeed = physics.speed * LAUNCH_SPEED_SCALE;
+  
+  // Approximate slope at launch
+  const slopeAtLaunch = initialVy / initialVx;
+  
+  return {
+    maxHeight: maxHeightM,
+    maxHeightPixels: maxHeight,
+    totalDistance: totalDistanceM,
+    totalDistancePixels: totalDistance,
+    flightTime,
+    initialSpeed,
+    initialVx,
+    initialVy,
+    slopeAtLaunch,
+    angle: physics.angleDeg,
+    gravity: physics.gravity,
+    scored: ball.scored,
+    maxHeightIdx
+  };
 }
 
 function drawShotGraph() {
   shotGraphCtx.clearRect(0, 0, shotGraphCanvas.width, shotGraphCanvas.height);
   shotGraphCtx.fillStyle = "rgba(7, 23, 38, 0.9)";
   shotGraphCtx.fillRect(0, 0, shotGraphCanvas.width, shotGraphCanvas.height);
+  
   if (ball.path.length < 2) {
     shotGraphMeta.textContent = "Take a shot to generate a trajectory graph.";
+    summaryText.textContent = "";
     return;
   }
 
@@ -271,6 +327,7 @@ function drawShotGraph() {
   const tx = (x) => pad + ((x - xMin) / Math.max(1, xMax - xMin)) * w;
   const ty = (y) => pad + h - ((y - yMin) / Math.max(1, yMax - yMin)) * h;
 
+  // Draw grid
   shotGraphCtx.strokeStyle = "rgba(180, 220, 255, 0.24)";
   shotGraphCtx.lineWidth = 1;
   for (let i = 0; i <= 3; i += 1) {
@@ -288,13 +345,18 @@ function drawShotGraph() {
     shotGraphCtx.stroke();
   }
 
+  // Draw trajectory line
   shotGraphCtx.strokeStyle = "rgba(125, 234, 203, 0.98)";
   shotGraphCtx.lineWidth = 2.6;
   shotGraphCtx.beginPath();
   shotGraphCtx.moveTo(tx(plotPoints[0].x), ty(plotPoints[0].y));
-  for (let i = 1; i < plotPoints.length; i += 1) shotGraphCtx.lineTo(tx(plotPoints[i].x), ty(plotPoints[i].y));
+  for (let i = 1; i < plotPoints.length; i += 1) {
+    shotGraphCtx.lineTo(tx(plotPoints[i].x), ty(plotPoints[i].y));
+  }
   shotGraphCtx.stroke();
 
+  // Find and mark key points
+  const summary = calculateShotSummary();
   const markerIdx = new Set([
     0,
     Math.floor(plotPoints.length * 0.25),
@@ -302,44 +364,201 @@ function drawShotGraph() {
     Math.floor(plotPoints.length * 0.75),
     plotPoints.length - 1
   ]);
-  let apexIndex = 0;
-  for (let i = 1; i < plotPoints.length; i += 1) {
-    if (plotPoints[i].y > plotPoints[apexIndex].y) apexIndex = i;
-  }
-  markerIdx.add(apexIndex);
+  markerIdx.add(summary.maxHeightIdx);
 
-  shotGraphCtx.fillStyle = "#9ee9ff";
-  shotGraphCtx.strokeStyle = "rgba(7, 23, 38, 0.9)";
-  shotGraphCtx.lineWidth = 1.5;
+  // Draw and label key markers
   shotGraphCtx.font = "600 11px Inter, sans-serif";
+  const markerLabels = {
+    0: "Launch",
+    [summary.maxHeightIdx]: "Max Height",
+    [plotPoints.length - 1]: ball.scored ? "Goal!" : "Landing"
+  };
+
   for (const idx of markerIdx) {
     const p = plotPoints[idx];
     const px = tx(p.x);
     const py = ty(p.y);
+    
+    // Choose color based on point importance
+    let color = "#9ee9ff";
+    if (idx === 0) color = "#67c1ff";
+    else if (idx === summary.maxHeightIdx) color = "#ffd07f";
+    else if (idx === plotPoints.length - 1) color = ball.scored ? "#8cffd5" : "#ff9ec7";
+
+    shotGraphCtx.fillStyle = color;
+    shotGraphCtx.strokeStyle = "rgba(7, 23, 38, 0.9)";
+    shotGraphCtx.lineWidth = 1.5;
     shotGraphCtx.beginPath();
     shotGraphCtx.arc(px, py, 4, 0, Math.PI * 2);
     shotGraphCtx.fill();
     shotGraphCtx.stroke();
-    shotGraphCtx.fillText(`(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`, px + 6, py - 6);
+
+    // Add label if it's a key point
+    if (markerLabels[idx]) {
+      shotGraphCtx.fillStyle = color;
+      shotGraphCtx.font = "700 10px Inter, sans-serif";
+      const label = markerLabels[idx];
+      shotGraphCtx.fillText(label, px + 8, py - 8);
+      
+      // Add physics info below label
+      shotGraphCtx.font = "600 9px Inter, sans-serif";
+      shotGraphCtx.fillStyle = "rgba(234, 248, 255, 0.7)";
+      const distM = (p.x * 0.02).toFixed(1);
+      const heightM = (p.y * 0.02).toFixed(1);
+      shotGraphCtx.fillText(`${distM}m, ${heightM}m`, px + 8, py + 4);
+    }
   }
 
+  // Draw axes labels
   shotGraphCtx.fillStyle = "rgba(234, 248, 255, 0.94)";
   shotGraphCtx.font = "700 12px Inter, sans-serif";
-  shotGraphCtx.fillText("x: forward distance from launch (px)", pad, shotGraphCanvas.height - 12);
+  shotGraphCtx.fillText("Distance from launch (meters)", pad, shotGraphCanvas.height - 12);
   shotGraphCtx.save();
   shotGraphCtx.translate(18, pad + h);
   shotGraphCtx.rotate(-Math.PI / 2);
-  shotGraphCtx.fillText("y: height above launch (px)", 0, 0);
+  shotGraphCtx.fillText("Height above launch (meters)", 0, 0);
   shotGraphCtx.restore();
 
+  // Update metadata
   const p = activeShotPhysics || getPhysicsFromControls();
   shotGraphMeta.textContent =
-    `angle ${p.angleDeg.toFixed(0)}° · power ${p.power.toFixed(0)} · gravity ${p.gravity.toFixed(1)}`;
+    `angle ${p.angleDeg.toFixed(0)}° · power ${p.power.toFixed(0)} · gravity ${p.gravity.toFixed(1)} · ${ball.scored ? "GOAL!" : "Missed"}`;
+
+  // Store trajectory data for tooltip
+  shotGraphCanvas.trajectoryData = {
+    plotPoints,
+    tx,
+    ty,
+    pad,
+    w,
+    h,
+    xMax,
+    yMax,
+    xMin,
+    yMin
+  };
+
+  // Generate and display summary
+  generateShotSummary(summary);
+}
+
+function generateShotSummary(summary) {
+  if (!summary) {
+    summaryText.textContent = "";
+    return;
+  }
+
+  const pixelsToMeters = 0.02;
+  const sport = game.sport === "soccer" ? "Soccer" : game.sport === "hockey" ? "Hockey" : "Basketball";
+  
+  // Calculate key physics insights
+  const initialSpeed = Math.sqrt(summary.initialVx ** 2 + summary.initialVy ** 2) * pixelsToMeters;
+  const peakHeight = summary.maxHeightPixels * pixelsToMeters;
+  const range = summary.totalDistancePixels * pixelsToMeters;
+  const timeToApex = Math.abs(summary.initialVy / (summary.gravity * GRAVITY_PIXEL_SCALE * pixelsToMeters));
+  const avgSlope = summary.initialVy / summary.initialVx;
+  
+  let resultText = `<strong>${sport} Shot Analysis:</strong> `;
+  
+  if (summary.scored) {
+    resultText += `✓ <strong style="color: #8cffd5">GOAL!</strong> `;
+  } else {
+    resultText += `✗ Missed. `;
+  }
+  
+  resultText += `Your projectile reached a <strong>max height of ${peakHeight.toFixed(2)}m</strong> and traveled <strong>${range.toFixed(2)}m</strong> `;
+  resultText += `in <strong>${summary.flightTime.toFixed(2)}s</strong>. `;
+  resultText += `Launched at <strong>${summary.angle.toFixed(0)}°</strong> with initial speed of <strong>${initialSpeed.toFixed(1)} m/s</strong>. `;
+  resultText += `The steepest slope occurred near launch (${avgSlope.toFixed(2)}). `;
+  resultText += `Gravity (${summary.gravity.toFixed(1)} m/s²) caused vertical velocity to decrease by `;
+  resultText += `<strong>${(summary.gravity * summary.flightTime).toFixed(1)} m/s</strong> over the flight.`;
+  
+  summaryText.innerHTML = resultText;
 }
 
 function showShotReview() {
   drawShotGraph();
   shotReview.classList.remove("hidden");
+  
+  // Add mouse tracking for tooltips
+  shotGraphCanvas.addEventListener("mousemove", handleGraphTooltip);
+  shotGraphCanvas.addEventListener("mouseleave", () => {
+    graphTooltip.classList.add("hidden");
+  });
+}
+
+function handleGraphTooltip(e) {
+  if (!shotGraphCanvas.trajectoryData) return;
+  
+  const rect = shotGraphCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  const data = shotGraphCanvas.trajectoryData;
+  const plotPoints = data.plotPoints;
+  const tx = data.tx;
+  const ty = data.ty;
+  const pad = data.pad;
+  
+  // Find nearest point on trajectory
+  let minDist = 10000;
+  let nearestIdx = -1;
+  
+  for (let i = 0; i < plotPoints.length; i++) {
+    const p = plotPoints[i];
+    const px = tx(p.x);
+    const py = ty(p.y);
+    const dist = Math.hypot(x - px, y - py);
+    if (dist < minDist && dist < 15) {
+      minDist = dist;
+      nearestIdx = i;
+    }
+  }
+  
+  if (nearestIdx === -1) {
+    graphTooltip.classList.add("hidden");
+    return;
+  }
+  
+  const p = plotPoints[nearestIdx];
+  const physics = activeShotPhysics || getPhysicsFromControls();
+  
+  // Calculate physics values at this point
+  const timeAtPoint = (nearestIdx / plotPoints.length) * ball.t;
+  const vx = Math.cos(physics.angleRad) * physics.speed * LAUNCH_SPEED_SCALE;
+  const vy = -Math.abs(Math.sin(physics.angleRad) * physics.speed * LAUNCH_SPEED_SCALE) + (physics.gravity * GRAVITY_PIXEL_SCALE * timeAtPoint);
+  const speed = Math.sqrt(vx ** 2 + vy ** 2) * 0.02;
+  const slope = vx !== 0 ? vy / vx : 0;
+  
+  let tooltipHTML = `<strong>Point ${nearestIdx + 1}</strong><br>`;
+  tooltipHTML += `Time: ${timeAtPoint.toFixed(2)}s<br>`;
+  tooltipHTML += `Position: (${(p.x * 0.02).toFixed(1)}m, ${(p.y * 0.02).toFixed(1)}m)<br>`;
+  tooltipHTML += `Speed: ${speed.toFixed(1)} m/s<br>`;
+  tooltipHTML += `Slope: ${slope.toFixed(2)}`;
+  
+  tooltipContent.innerHTML = tooltipHTML;
+  graphTooltip.classList.remove("hidden");
+  
+  // Position tooltip relative to canvas
+  const px = tx(p.x);
+  const py = ty(p.y);
+  
+  // Ensure tooltip doesn't go off-screen
+  let tooltipX = px + 10;
+  let tooltipY = py - 80;
+  
+  // Check if tooltip would go off right edge
+  if (tooltipX + 200 > shotGraphCanvas.width) {
+    tooltipX = px - 210;
+  }
+  
+  // Check if tooltip would go off top edge
+  if (tooltipY < 0) {
+    tooltipY = py + 20;
+  }
+  
+  graphTooltip.style.left = tooltipX + "px";
+  graphTooltip.style.top = tooltipY + "px";
 }
 
 function resetBall() {
